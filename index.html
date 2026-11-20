@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101b35">
+  <title>焼成スケジュール | 絶叫焼き</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">ZEKKYOYAKI / STORE TOOL</p>
+      <h1>焼成スケジュール</h1>
+    </div>
+    <span id="connection" class="connection">Firebase未接続</span>
+  </header>
+
+  <main class="container">\n
+    <section id="authPanel" class="panel auth-panel">
+      <div class="section-title">
+        <div><p class="eyebrow">PRIVATE ACCESS</p><h2>ログイン</h2></div>
+      </div>
+      <p class="auth-help">このアプリの予定データを自分専用で管理します。初回はアカウントを作成してください。</p>
+      <form id="authForm">
+        <label>メールアドレス<input id="authEmail" type="email" autocomplete="username" required placeholder="メールアドレス"></label>
+        <label>パスワード<input id="authPassword" type="password" autocomplete="current-password" minlength="6" required placeholder="6文字以上"></label>
+        <div class="form-actions">
+          <button class="button primary" type="submit" id="loginButton">ログイン</button>
+          <button class="button secondary" type="button" id="registerButton">新規登録</button>
+        </div>
+        <p id="authMessage" class="message" aria-live="polite"></p>
+      </form>
+    </section>
+    <section id="appContent" class="hidden">
+
+    <section class="week-head panel">
+      <div>
+        <p class="eyebrow">WEEKLY PLAN</p>
+        <h2 id="weekLabel">週間予定</h2>
+      </div>
+      <div class="week-actions">
+        <button id="prevWeek" class="button secondary" type="button">‹ 前週</button>
+        <button id="thisWeek" class="button secondary" type="button">今週</button>
+        <button id="nextWeek" class="button secondary" type="button">翌週 ›</button>
+      </div>
+    </section>
+
+    <section class="summary-grid">
+      <article class="summary-card">
+        <span>登録日数</span><strong id="registeredDays">0日</strong>
+      </article>
+      <article class="summary-card">
+        <span>商品別数量</span><strong id="individualTotal">0個</strong>
+      </article>
+      <article class="summary-card">
+        <span>セット換算数量</span><strong id="bundleTotal">0個</strong>
+      </article>
+      <article class="summary-card accent">
+        <span>週間合計数量</span><strong id="grandTotal">0個</strong>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="section-title">
+        <div><p class="eyebrow">SCHEDULE</p><h2>今週の予定</h2></div>
+        <button id="addToday" class="button primary" type="button">＋ 予定を追加</button>
+      </div>
+      <div id="scheduleList" class="schedule-list">
+        <div class="empty">予定を読み込んでいます…</div>
+      </div>
+    </section>
+
+    <section class="panel" id="editorPanel">
+      <div class="section-title">
+        <div><p class="eyebrow">PLAN EDITOR</p><h2 id="editorTitle">焼成予定を登録</h2></div>
+        <button id="clearForm" class="button secondary" type="button">入力をクリア</button>
+      </div>
+      <form id="scheduleForm">
+        <input id="editingDate" type="hidden">
+        <div class="form-grid">
+          <label>日付
+            <input id="planDate" type="date" required>
+          </label>
+          <label>予定・イベント名
+            <input id="eventName" type="text" placeholder="例：通常営業、団体予約">
+          </label>
+        </div>
+
+        <div class="subsection">
+          <div class="subsection-title">
+            <div><h3>商品別の焼成数</h3><p>商品ごとに個数を入力</p></div>
+            <span class="unit">単位：個</span>
+          </div>
+          <div id="productInputs" class="product-grid"></div>
+          <div class="subtotal">商品別合計 <strong id="individualSubtotal">0個</strong></div>
+        </div>
+
+        <div class="subsection">
+          <div class="subsection-title">
+            <div><h3>セット商品の予定</h3><p>セット数を入力すると個数に換算</p></div>
+          </div>
+          <div class="bundle-grid">
+            <label>4個入り（セット数）
+              <input id="bundle4" type="number" min="0" step="1" value="0">
+              <small id="bundle4Result">0セット × 4個 = 0個</small>
+            </label>
+            <label>8個入り（セット数）
+              <input id="bundle8" type="number" min="0" step="1" value="0">
+              <small id="bundle8Result">0セット × 8個 = 0個</small>
+            </label>
+          </div>
+          <div class="subtotal">セット換算合計 <strong id="bundleSubtotal">0個</strong></div>
+        </div>
+
+        <div class="form-grid">
+          <label>営業・焼成時間
+            <input id="businessHours" type="text" placeholder="例：14:30〜19:00">
+          </label>
+          <label>団体人数・予約数
+            <input id="groupCount" type="number" min="0" step="1" placeholder="例：630">
+          </label>
+        </div>
+        <label class="full-label">備考・注意事項
+          <textarea id="notes" rows="3" placeholder="材料の確保、イベント、品切れ注意など"></textarea>
+        </label>
+
+        <div class="total-box">
+          <span>この日の焼成予定合計</span>
+          <strong id="dayTotal">0個</strong>
+          <small>商品別数量 ＋ セット換算数量</small>
+        </div>
+        <div class="form-actions">
+          <button id="saveButton" class="button primary" type="submit">予定を保存</button>
+          <button id="deleteButton" class="button danger hidden" type="button">この予定を削除</button>
+        </div>
+        <p id="formMessage" class="message" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <footer>BAKE SCHEDULE · 絶叫焼き専用</footer>\n    </section>\n    <div id="accountBar" class="account-bar hidden"><span id="accountEmail"></span><button id="logoutButton" class="button secondary" type="button">ログアウト</button></div>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
