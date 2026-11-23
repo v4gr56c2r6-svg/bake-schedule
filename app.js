@@ -139,6 +139,34 @@ function formatMaterialAmount(grams){
   }
   return {main:`${exactGrams} g`,detail:""};
 }
+function currentFormPlan(){
+  const products={};
+  document.querySelectorAll("[data-product]").forEach(input=>products[input.dataset.product]=qty(input.value));
+  return {products,bundle4:qty($("bundle4").value),bundle8:qty($("bundle8").value),bundle16:qty($("bundle16").value)};
+}
+function renderMaterialSummary(){
+  const dates=weekDates();
+  let weeklyPieces=dates.reduce((sum,date)=>sum+total(plans[dateKey(date)]),0);
+  const editingKey=$("editingDate").value;
+  const planKey=$("planDate").value;
+  const currentForm=currentFormPlan();
+  let includesDraft=false;
+  const isInWeek=key=>Boolean(key)&&dates.some(date=>dateKey(date)===key);
+  if(editingKey){
+    if(isInWeek(editingKey))weeklyPieces-=total(plans[editingKey]);
+    if(isInWeek(planKey)){weeklyPieces+=total(currentForm);includesDraft=true;}
+  }else if(isInWeek(planKey)&&!plans[planKey]){
+    weeklyPieces+=total(currentForm);
+    includesDraft=total(currentForm)>0;
+  }
+  const materialFactor=weeklyPieces/MATERIAL_BASE_YIELD;
+  const draftLabel=includesDraft?"（入力中を含む）":"";
+  $("materialBasis").textContent=`週間予定 ${weeklyPieces.toLocaleString()}個${draftLabel} ／ 400個仕込み ${materialFactor.toLocaleString("ja-JP",{maximumFractionDigits:3})}回分`;
+  $("materialSummary").innerHTML=MATERIALS.map(material=>{
+    const amount=formatMaterialAmount(material.gramsPerBase*materialFactor);
+    return `<article class="material-card"><strong>${material.name}</strong><span>${amount.main}</span>${amount.detail?`<small>${amount.detail}</small>`:""}</article>`;
+  }).join("");
+}
 
 function showApp(user){
   currentUser=user;
@@ -170,6 +198,7 @@ function updateTotals(){
   $("individualSubtotal").textContent=`${individual}個`;
   $("bundleSubtotal").textContent=`${bundles}個`;
   $("dayTotal").textContent=`${individual+bundles}個`;
+  renderMaterialSummary();
 }
 function clearForm(date=dateKey(new Date())){
   $("scheduleForm").reset();$("planDate").value=date;$("editingDate").value="";
@@ -203,12 +232,7 @@ function renderWeek(){
   },{custardNormal:0,ankoNormal:0,custardBox:0,ankoBox:0,custardTotal:0,ankoTotal:0});
   $("registeredDays").textContent=`${registered}日`;$("individualTotal").textContent=`${individual}個`;
   $("bundleTotal").textContent=`${bundles}個`;$("grandTotal").textContent=`${weeklyPieces}個`;
-  const materialFactor=weeklyPieces/MATERIAL_BASE_YIELD;
-  $("materialBasis").textContent=`週間予定 ${weeklyPieces.toLocaleString()}個 ／ 400個仕込み ${materialFactor.toLocaleString("ja-JP",{maximumFractionDigits:3})}回分`;
-  $("materialSummary").innerHTML=MATERIALS.map(material=>{
-    const amount=formatMaterialAmount(material.gramsPerBase*materialFactor);
-    return `<article class="material-card"><strong>${material.name}</strong><span>${amount.main}</span>${amount.detail?`<small>${amount.detail}</small>`:""}</article>`;
-  }).join("");
+  renderMaterialSummary();
   $("flavorSummary").innerHTML=[
     ["通常製作分",flavor.custardNormal,flavor.ankoNormal],
     ["箱入り製作分",flavor.custardBox,flavor.ankoBox],
@@ -280,6 +304,7 @@ $("deleteButton").onclick=async()=>{
 $("clearForm").onclick=()=>clearForm($("planDate").value||dateKey(new Date()));
 $("addToday").onclick=()=>{clearForm(dateKey(new Date()));$("editorPanel").scrollIntoView({behavior:"smooth"});};
 ["bundle4","bundle8","bundle16"].forEach(id=>$(id).addEventListener("input",updateTotals));
+$("planDate").addEventListener("change",updateTotals);
 $("prevWeek").onclick=()=>{weekStart.setDate(weekStart.getDate()-7);renderWeek();};
 $("nextWeek").onclick=()=>{weekStart.setDate(weekStart.getDate()+7);renderWeek();};
 $("thisWeek").onclick=()=>{weekStart=mondayOf(new Date());renderWeek();};
