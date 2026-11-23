@@ -87,7 +87,7 @@ footer{text-align:center;color:#a0a8b6;font-size:10px;letter-spacing:.15em;paddi
 .account-bar.hidden{display:none}
 @media(max-width:700px){.account-bar{margin:-20px auto 18px;justify-content:space-between}}
 
-/* v1.4 絶叫焼きカラーと曜日・祝日表示 */
+/* v1.4〜v1.5 絶叫焼きカラー、曜日・祝日、材料合計 */
 :root{color:#342e29;background:#f7f1e5}
 body{background:#f7f1e5}
 .topbar{background:#c64936}
@@ -136,4 +136,19 @@ footer{color:#9c9387}
  .production-summary .subsection-title{align-items:flex-start;gap:6px}
  .flavor-grid{grid-template-columns:1fr;gap:7px}
  .flavor-card{padding:11px 13px}
+}
+.material-summary .section-title{align-items:center}
+.material-basis{margin:14px 0;color:#706a60;font-size:12px;font-weight:700}
+.material-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.material-card{min-width:0;padding:14px;border:1px solid #dae5d1;border-radius:12px;background:#f4f6ee}
+.material-card strong{display:block;color:#536a47;font-size:13px}
+.material-card span{display:block;margin-top:8px;color:#47779b;font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.material-card small{display:block;margin-top:3px;color:#777063;font-size:11px;font-variant-numeric:tabular-nums}
+@media(max-width:900px){.material-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:700px){
+ .material-summary .section-title{align-items:flex-start;gap:6px}
+ .material-summary .section-title .unit{align-self:flex-start}
+ .material-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .material-card{padding:11px}
+ .material-card span{font-size:17px}
 }

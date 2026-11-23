@@ -9,6 +9,14 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 const PRODUCTS = ["カスタード","あんこ","生地のみ","チョコ"];
+const MATERIAL_BASE_YIELD = 400;
+const MATERIALS = [
+  {name:"玉子", gramsPerBase:3860},
+  {name:"デリドール", gramsPerBase:666},
+  {name:"パルファンドール", gramsPerBase:66},
+  {name:"ヤキマンミックス", gramsPerBase:6660},
+  {name:"水", gramsPerBase:400}
+];
 const $ = id => document.getElementById(id);
 let db = null, auth = null, currentUser = null, plans = {};
 let weekStart = mondayOf(new Date());
@@ -123,6 +131,14 @@ function productBreakdown(plan={}){
   const custard=qty(products["カスタード"]),anko=qty(products["あんこ"]);
   return {custardNormal:custard,ankoNormal:anko,custardBox:boxed,ankoBox:boxed,custardTotal:custard+boxed,ankoTotal:anko+boxed};
 }
+function formatMaterialAmount(grams){
+  const exactGrams=grams.toLocaleString("ja-JP",{maximumFractionDigits:3});
+  if(grams>=1000){
+    const kilograms=(grams/1000).toLocaleString("ja-JP",{maximumFractionDigits:2});
+    return {main:`${kilograms} kg`,detail:`${exactGrams} g`};
+  }
+  return {main:`${exactGrams} g`,detail:""};
+}
 
 function showApp(user){
   currentUser=user;
@@ -177,6 +193,7 @@ function renderWeek(){
   const registered=rows.filter(x=>x.plan&&total(x.plan)>0).length;
   const individual=rows.reduce((s,x)=>s+sumProducts(x.plan?.products),0);
   const bundles=rows.reduce((s,x)=>s+bundleCount(x.plan),0);
+  const weeklyPieces=individual+bundles;
   const flavor=rows.reduce((sum,x)=>{
     const b=productBreakdown(x.plan);
     sum.custardNormal+=b.custardNormal;sum.ankoNormal+=b.ankoNormal;
@@ -185,7 +202,13 @@ function renderWeek(){
     return sum;
   },{custardNormal:0,ankoNormal:0,custardBox:0,ankoBox:0,custardTotal:0,ankoTotal:0});
   $("registeredDays").textContent=`${registered}日`;$("individualTotal").textContent=`${individual}個`;
-  $("bundleTotal").textContent=`${bundles}個`;$("grandTotal").textContent=`${individual+bundles}個`;
+  $("bundleTotal").textContent=`${bundles}個`;$("grandTotal").textContent=`${weeklyPieces}個`;
+  const materialFactor=weeklyPieces/MATERIAL_BASE_YIELD;
+  $("materialBasis").textContent=`週間予定 ${weeklyPieces.toLocaleString()}個 ／ 400個仕込み ${materialFactor.toLocaleString("ja-JP",{maximumFractionDigits:3})}回分`;
+  $("materialSummary").innerHTML=MATERIALS.map(material=>{
+    const amount=formatMaterialAmount(material.gramsPerBase*materialFactor);
+    return `<article class="material-card"><strong>${material.name}</strong><span>${amount.main}</span>${amount.detail?`<small>${amount.detail}</small>`:""}</article>`;
+  }).join("");
   $("flavorSummary").innerHTML=[
     ["通常製作分",flavor.custardNormal,flavor.ankoNormal],
     ["箱入り製作分",flavor.custardBox,flavor.ankoBox],
