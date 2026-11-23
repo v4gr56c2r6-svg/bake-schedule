@@ -17,8 +17,10 @@ const MATERIALS = [
   {name:"ヤキマンミックス", gramsPerBase:6660},
   {name:"水", gramsPerBase:400}
 ];
+const SETTINGS_DOC_ID = "_settings";
 const $ = id => document.getElementById(id);
 let db = null, auth = null, currentUser = null, plans = {};
+let shelfLifeSettings = {regularDays:null,boxedDays:null};
 let weekStart = mondayOf(new Date());
 
 function mondayOf(date){const d=new Date(date.getFullYear(),date.getMonth(),date.getDate());d.setDate(d.getDate()-((d.getDay()+6)%7));return d;}
@@ -131,6 +133,38 @@ function productBreakdown(plan={}){
   const custard=qty(products["カスタード"]),anko=qty(products["あんこ"]);
   return {custardNormal:custard,ankoNormal:anko,custardBox:boxed,ankoBox:boxed,custardTotal:custard+boxed,ankoTotal:anko+boxed};
 }
+function normalizeDayCount(value){
+  if(value===null||value===undefined||value==="")return null;
+  const days=Number(value);
+  return Number.isInteger(days)&&days>=0?days:null;
+}
+function renderShelfLifeForm(){
+  $("regularShelfDays").value=shelfLifeSettings.regularDays??"";
+  $("boxedShelfDays").value=shelfLifeSettings.boxedDays??"";
+}
+function expirationDateLabel(key,days){
+  const made=parseDate(key),expiration=new Date(made);
+  expiration.setDate(expiration.getDate()+days);
+  return expiration.getFullYear()===made.getFullYear()
+    ? fmtDate(expiration)
+    : `${expiration.getFullYear()}/${fmtDate(expiration)}`;
+}
+function expirationLines(key,plan){
+  const made=fmtDate(parseDate(key)),lines=[];
+  if(shelfLifeSettings.regularDays!==null){
+    PRODUCTS.forEach(product=>{
+      if(qty(plan.products?.[product])>0){
+        lines.push(`${made}作成 ${product}期限：${expirationDateLabel(key,shelfLifeSettings.regularDays)}`);
+      }
+    });
+  }
+  if(shelfLifeSettings.boxedDays!==null){
+    const breakdown=productBreakdown(plan);
+    if(breakdown.custardBox>0)lines.push(`${made}作成 箱入りカスタード期限：${expirationDateLabel(key,shelfLifeSettings.boxedDays)}`);
+    if(breakdown.ankoBox>0)lines.push(`${made}作成 箱入りあんこ期限：${expirationDateLabel(key,shelfLifeSettings.boxedDays)}`);
+  }
+  return lines;
+}
 function formatMaterialAmount(grams){
   const exactGrams=grams.toLocaleString("ja-JP",{maximumFractionDigits:3});
   if(grams>=1000){
@@ -179,7 +213,7 @@ function showApp(user){
     $("connection").classList.add("online");
     loadPlans();
   }else{
-    plans={};renderWeek();
+    plans={};shelfLifeSettings={regularDays:null,boxedDays:null};renderShelfLifeForm();renderWeek();
     $("connection").textContent="ログインしてください";
     $("connection").classList.remove("online");
   }
@@ -249,7 +283,9 @@ function renderWeek(){
     const detail=[plan.businessHours,plan.groupCount?`団体 ${plan.groupCount}人`:"",plan.notes].filter(Boolean).join(" ／ ");
     const breakdown=productBreakdown(plan);
     const flavorLine=`カスタード ${breakdown.custardTotal.toLocaleString()}個 ／ あんこ ${breakdown.ankoTotal.toLocaleString()}個`;
-    return `<article class="day-card ${calendarClass}">${dateMarkup}<small><span class="status ${plan.done?"done":""}">${plan.done?"焼成完了":"予定あり"}</span></small></div><div class="day-main"><strong>${escapeHtml(plan.eventName||"焼成予定")}</strong><p>${escapeHtml(detail||"備考なし")}<span class="production-detail">${flavorLine}</span></p><div class="day-tools"><button class="mini" data-edit="${key}">編集</button><button class="mini" data-done="${key}">${plan.done?"未完了に戻す":"完了にする"}</button></div></div><div class="day-count">${total(plan).toLocaleString()}個<small>予定数量</small></div></article>`;
+    const expiryLines=expirationLines(key,plan).map(line=>`<div class="expiry-line">${escapeHtml(line)}</div>`).join("");
+    const expiryMarkup=expiryLines?`<div class="expiry-list">${expiryLines}</div>`:"";
+    return `<article class="day-card ${calendarClass}">${dateMarkup}<small><span class="status ${plan.done?"done":""}">${plan.done?"焼成完了":"予定あり"}</span></small></div><div class="day-main"><strong>${escapeHtml(plan.eventName||"焼成予定")}</strong><p>${escapeHtml(detail||"備考なし")}<span class="production-detail">${flavorLine}</span></p>${expiryMarkup}<div class="day-tools"><button class="mini" data-edit="${key}">編集</button><button class="mini" data-done="${key}">${plan.done?"未完了に戻す":"完了にする"}</button></div></div><div class="day-count">${total(plan).toLocaleString()}個<small>予定数量</small></div></article>`;
   }).join("");
   $("scheduleList").querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>{const key=b.dataset.add;if(plans[key])fillForm(key);else clearForm(key);$("editorPanel").scrollIntoView({behavior:"smooth",block:"start"});});
   $("scheduleList").querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>fillForm(b.dataset.edit));
@@ -259,7 +295,14 @@ async function loadPlans(){
   if(!db||!currentUser)return;
   try{
     const q=query(collection(db,"bakeSchedules"),where("ownerUid","==",currentUser.uid));
-    const snap=await getDocs(q);plans={};snap.forEach(d=>plans[d.id]=d.data());renderWeek();
+    const snap=await getDocs(q);plans={};shelfLifeSettings={regularDays:null,boxedDays:null};
+    snap.forEach(d=>{
+      const data=d.data();
+      if(d.id===SETTINGS_DOC_ID){
+        shelfLifeSettings={regularDays:normalizeDayCount(data.regularShelfDays),boxedDays:normalizeDayCount(data.boxedShelfDays)};
+      }else plans[d.id]=data;
+    });
+    renderShelfLifeForm();renderWeek();
   }catch(e){console.error(e);$("formMessage").textContent=`読み込みエラー：${e.message}`;}
 }
 async function persist(key,data){
@@ -289,6 +332,25 @@ function authError(e){
   return map[e.code]||`認証エラー：${e.message}`;
 }
 $("logoutButton").onclick=()=>signOut(auth);
+$("shelfLifeForm").addEventListener("submit",async e=>{
+  e.preventDefault();$("shelfLifeMessage").textContent="";
+  if(!db||!currentUser){$("shelfLifeMessage").textContent="ログイン後に設定を保存できます。";return;}
+  const regularValue=$("regularShelfDays").value,boxedValue=$("boxedShelfDays").value;
+  const nextSettings={regularDays:normalizeDayCount(regularValue),boxedDays:normalizeDayCount(boxedValue)};
+  if((regularValue!==""&&nextSettings.regularDays===null)||(boxedValue!==""&&nextSettings.boxedDays===null)){
+    $("shelfLifeMessage").textContent="賞味期限は0以上の整数で入力してください。";return;
+  }
+  try{
+    await setDoc(doc(db,"bakeSchedules",SETTINGS_DOC_ID),{
+      ownerUid:currentUser.uid,regularShelfDays:nextSettings.regularDays,
+      boxedShelfDays:nextSettings.boxedDays,updatedAt:new Date().toISOString()
+    });
+    shelfLifeSettings=nextSettings;renderWeek();
+    $("shelfLifeMessage").textContent="賞味期限を保存しました。";
+  }catch(error){
+    console.error(error);$("shelfLifeMessage").textContent=`保存できませんでした：${error.message}`;
+  }
+});
 $("scheduleForm").addEventListener("submit",async e=>{
   e.preventDefault();const key=$("planDate").value;if(!key){$("formMessage").textContent="日付を入力してください。";return;}
   const products={};document.querySelectorAll("[data-product]").forEach(i=>products[i.dataset.product]=qty(i.value));

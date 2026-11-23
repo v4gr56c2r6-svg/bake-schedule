@@ -78,6 +78,27 @@
       <div id="materialSummary" class="material-grid"></div>
     </section>
 
+    <section class="panel shelf-life-panel" aria-labelledby="shelfLifeTitle">
+      <div class="section-title">
+        <div><p class="eyebrow">EXPIRY SETTINGS</p><h2 id="shelfLifeTitle">賞味期限の設定</h2></div>
+      </div>
+      <p class="shelf-life-help">作成日から何日後を期限日にするか入力してください。予定カードには数量のある商品だけ表示します。</p>
+      <form id="shelfLifeForm">
+        <div class="shelf-life-grid">
+          <label>通常商品の賞味期限（日後）
+            <input id="regularShelfDays" type="number" min="0" step="1" inputmode="numeric" placeholder="例：3">
+          </label>
+          <label>箱入り商品の賞味期限（日後）
+            <input id="boxedShelfDays" type="number" min="0" step="1" inputmode="numeric" placeholder="例：5">
+          </label>
+        </div>
+        <div class="form-actions">
+          <button class="button primary" type="submit">賞味期限を保存</button>
+        </div>
+        <p id="shelfLifeMessage" class="message" aria-live="polite"></p>
+      </form>
+    </section>
+
     <section class="panel">
       <div class="section-title">
         <div><p class="eyebrow">SCHEDULE</p><h2>今週の予定</h2></div>
