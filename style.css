@@ -99,3 +99,61 @@ footer{text-align:center;color:#a0a8b6;font-size:10px;letter-spacing:.15em;paddi
 .flavor-total{background:#eaf0ff;color:#1c376b}
 .flavor-total strong{font-size:15px}
 @media(max-width:700px){.flavor-week-grid{grid-template-columns:1fr}.flavor-row{padding:10px 8px;font-size:11px}}
+
+/* v1.4: Zekkyo-yaki package inspired warm Japanese palette */
+:root{
+  color:#332b25;
+  background:#f4eee2;
+  --ink:#332b25;
+  --cream:#f4eee2;
+  --paper:#fffaf0;
+  --orange:#d97732;
+  --orange-deep:#b95727;
+  --red:#b9362d;
+  --red-deep:#8f2925;
+  --teal:#789b88;
+  --teal-light:#e5eee6;
+  --fuji:#527d9b;
+  --line:#e5d8c5;
+}
+body{background:#f4eee2;color:#332b25}
+.topbar{background:#a9322b;color:#fff;border-bottom:6px solid #d97732}
+.eyebrow{color:#a97853}
+.topbar .eyebrow{color:#f4d5b5}
+.connection{border-color:#e5a59a;color:#fff2df}
+.connection.online{background:#315e50;color:#f0f6e9;border-color:#8eb5a0}
+.panel{background:#fffaf0;border-color:#e5d8c5;box-shadow:0 5px 18px #6b44200d}
+.week-head{background:#fffaf0}
+.button.primary{background:#b9362d;color:#fffaf0}
+.button.primary:hover{background:#8f2925}
+.button.secondary{background:#eee4d4;color:#594638}
+.button.danger{background:#fae7df;color:#9c3028}
+.summary-card{background:#fffaf0;border-color:#e5d8c5}
+.summary-card.accent{background:#e7eee4;border-color:#cbd9c8}
+.summary-card.accent strong{color:#416b59}
+.day-card{background:#fffdf7;border-color:#e5d8c5}
+.day-tools .mini{background:#f2e7d7;color:#80543a}
+.status{background:#f9ead3;color:#985b21}
+.status.done{background:#e2eee4;color:#356b50}
+.empty{background:#f5eee3;color:#8b7968}
+input,textarea{border-color:#ddcfbb;background:#fffdf8;color:#332b25}
+input:focus,textarea:focus{outline:2px solid #c8a27d;border-color:#b9774e}
+label{color:#665343}
+.product-grid label,.bundle-grid label{background:#f5eee3}
+.subsection{border-color:#eadfce}
+.subtotal strong{color:#a63c2e}
+.total-box{background:#a9322b;color:#fffaf0;border:1px solid #d97732}
+.total-box small{color:#f5d8c3}
+.flavor-week-grid article{background:#eaf0e8;border-color:#d2dfd0}
+.flavor-week-grid strong{color:#416b59}
+.flavor-row{border-color:#eadfce}
+.flavor-head{background:#f3e8d8;color:#765b45}
+.flavor-total{background:#e7eee4;color:#345e4d}
+.flavor-total strong{color:#345e4d}
+.subtotal,.day-main p,.summary-card span{color:#776b5d}
+input[type="checkbox"]{accent-color:#b9362d}
+a{color:#a9322b}
+@media print{
+  body{background:#fff}
+  .topbar{background:#a9322b!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
