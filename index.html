@@ -61,6 +61,16 @@
       </article>
     </section>
 
+    <section class="panel flavor-week">
+      <div class="section-title">
+        <div><p class="eyebrow">WEEKLY FLAVOR TOTAL</p><h2>週間フレーバー別製作数</h2></div>
+      </div>
+      <div class="flavor-week-grid">
+        <article><span>カスタード合計</span><strong id="weekCustardTotal">0個</strong><small id="weekCustardBreakdown">通常 0個 ＋ 箱入り 0個</small></article>
+        <article><span>あんこ合計</span><strong id="weekAnkoTotal">0個</strong><small id="weekAnkoBreakdown">通常 0個 ＋ 箱入り 0個</small></article>
+      </div>
+    </section>
+
     <section class="panel">
       <div class="section-title">
         <div><p class="eyebrow">SCHEDULE</p><h2>今週の予定</h2></div>
@@ -117,6 +127,18 @@
           <div class="subtotal">セット換算合計 <strong id="bundleSubtotal">0個</strong></div>
         </div>
 
+        <div class="subsection flavor-breakdown">
+          <div class="subsection-title">
+            <div><h3>カスタード・あんこ製作数</h3><p>通常分と箱入り分を分けて集計</p></div>
+          </div>
+          <div class="flavor-table">
+            <div class="flavor-row flavor-head"><span>種類</span><span>カスタード</span><span>あんこ</span></div>
+            <div class="flavor-row"><strong>通常製作分</strong><strong id="regularCustard">0個</strong><strong id="regularAnko">0個</strong></div>
+            <div class="flavor-row"><strong>箱入り製作分</strong><strong id="boxCustard">0個</strong><strong id="boxAnko">0個</strong></div>
+            <div class="flavor-row flavor-total"><strong>最終製作数</strong><strong id="totalCustard">0個</strong><strong id="totalAnko">0個</strong></div>
+          </div>
+        </div>
+
         <div class="form-grid">
           <label>営業・焼成時間
             <input id="businessHours" type="text" placeholder="例：14:30〜19:00">
@@ -132,7 +154,7 @@
         <div class="total-box">
           <span>この日の焼成予定合計</span>
           <strong id="dayTotal">0個</strong>
-          <small>商品別数量 ＋ セット換算数量</small>
+          <small>通常商品 ＋ 箱入りセットの中身（カスタード・あんこ各半分）</small>
         </div>
         <div class="form-actions">
           <button id="saveButton" class="button primary" type="submit">予定を保存</button>
@@ -142,7 +164,9 @@
       </form>
     </section>
 
-    <footer>BAKE SCHEDULE · 絶叫焼き専用</footer>    </section>    <div id="accountBar" class="account-bar hidden"><span id="accountEmail"></span><button id="logoutButton" class="button secondary" type="button">ログアウト</button></div>
+    <footer>BAKE SCHEDULE · 絶叫焼き専用</footer>
+    </section>
+    <div id="accountBar" class="account-bar hidden"><span id="accountEmail"></span><button id="logoutButton" class="button secondary" type="button">ログアウト</button></div>
   </main>
 
   <script type="module" src="app.js"></script>
