@@ -17,27 +17,112 @@ function mondayOf(date){const d=new Date(date.getFullYear(),date.getMonth(),date
 function dateKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
 function parseDate(key){const [y,m,d]=key.split("-").map(Number);return new Date(y,m-1,d);}
 function fmtDate(d){return `${d.getMonth()+1}/${d.getDate()}`;}
+function pad2(n){return String(n).padStart(2,"0");}
 function qty(v){return Math.max(0,Math.floor(Number(v)||0));}
 function sumProducts(p={}){return Object.values(p).reduce((a,b)=>a+qty(b),0);}
-function boxFlavorCount(p){
-  const half=qty(p?.bundle4)*2+qty(p?.bundle8)*4+qty(p?.bundle16)*8;
-  return {custard:half,anko:half};
-}
 function bundleCount(p){return qty(p?.bundle4)*4+qty(p?.bundle8)*8+qty(p?.bundle16)*16;}
-function flavorTotals(p){
-  const box=boxFlavorCount(p), products=p?.products||{};
-  const regularCustard=qty(products["カスタード"]), regularAnko=qty(products["あんこ"]);
-  return {regularCustard,regularAnko,boxCustard:box.custard,boxAnko:box.anko,
-    totalCustard:regularCustard+box.custard,totalAnko:regularAnko+box.anko};
-}
-function total(p){
-  const products=p?.products||{};
-  const other=sumProducts(Object.fromEntries(Object.entries(products).filter(([k])=>k!=="カスタード"&&k!=="あんこ")));
-  const f=flavorTotals(p);
-  return other+f.totalCustard+f.totalAnko;
-}
+function total(p){return sumProducts(p?.products)+bundleCount(p);}
 function weekDates(){return Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(d.getDate()+i);return d;});}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+const japaneseHolidayCache=new Map();
+function nthWeekday(year,month,weekday,nth){
+  const firstWeekday=new Date(Date.UTC(year,month-1,1)).getUTCDay();
+  return 1+((weekday-firstWeekday+7)%7)+(nth-1)*7;
+}
+function vernalEquinoxDay(year){
+  return Math.floor(year<=1979
+    ? 20.8357+0.242194*(year-1980)-Math.floor((year-1980)/4)
+    : 20.8431+0.242194*(year-1980)-Math.floor((year-1980)/4));
+}
+function autumnalEquinoxDay(year){
+  return Math.floor(year<=1979
+    ? 23.2588+0.242194*(year-1980)-Math.floor((year-1980)/4)
+    : 23.2488+0.242194*(year-1980)-Math.floor((year-1980)/4));
+}
+function japaneseHolidays(year){
+  if(japaneseHolidayCache.has(year))return japaneseHolidayCache.get(year);
+  const holidays=new Map();
+  const add=(month,day,name)=>holidays.set(`${year}-${pad2(month)}-${pad2(day)}`,name);
+  const weekday=(month,day)=>new Date(Date.UTC(year,month-1,day)).getUTCDay();
+
+  if(year>=1949)add(1,1,"元日");
+  if(year>=2000)add(1,nthWeekday(year,1,1,2),"成人の日");
+  else if(year>=1949)add(1,15,"成人の日");
+  if(year>=1967)add(2,11,"建国記念の日");
+  if(year>=2020)add(2,23,"天皇誕生日");
+  else if(year>=1989&&year<=2018)add(12,23,"天皇誕生日");
+  if(year>=1948)add(3,vernalEquinoxDay(year),"春分の日");
+
+  if(year>=1949&&year<=1988)add(4,29,"天皇誕生日");
+  else if(year>=1989&&year<=2006)add(4,29,"みどりの日");
+  else if(year>=2007)add(4,29,"昭和の日");
+  if(year>=1948)add(5,3,"憲法記念日");
+  if(year>=2007)add(5,4,"みどりの日");
+  if(year>=1948)add(5,5,"こどもの日");
+
+  if(year>=1996&&year<=2002)add(7,20,"海の日");
+  else if(year>=2003&&year!==2020&&year!==2021)add(7,nthWeekday(year,7,1,3),"海の日");
+  if(year>=2016&&year!==2020&&year!==2021)add(8,11,"山の日");
+  if(year>=1966&&year<=2002)add(9,15,"敬老の日");
+  else if(year>=2003)add(9,nthWeekday(year,9,1,3),"敬老の日");
+  if(year>=1948)add(9,autumnalEquinoxDay(year),"秋分の日");
+  if(year>=1966&&year<=1999)add(10,10,"体育の日");
+  else if(year>=2000&&year<=2019)add(10,nthWeekday(year,10,1,2),"体育の日");
+  else if(year>=2022)add(10,nthWeekday(year,10,1,2),"スポーツの日");
+  if(year>=1948){add(11,3,"文化の日");add(11,23,"勤労感謝の日");}
+
+  // 祝日法の特例で移動した日・臨時の祝日
+  if(year===2019){add(5,1,"天皇の即位の日");add(10,22,"即位礼正殿の儀");}
+  if(year===2020){add(7,23,"海の日");add(7,24,"スポーツの日");add(8,10,"山の日");}
+  if(year===2021){add(7,22,"海の日");add(7,23,"スポーツの日");add(8,8,"山の日");}
+  if(year===1959)add(4,10,"皇太子明仁親王の結婚の儀");
+  if(year===1989)add(2,24,"大喪の礼");
+  if(year===1990)add(11,12,"即位礼正殿の儀");
+  if(year===1993)add(6,9,"皇太子徳仁親王の結婚の儀");
+
+  // 祝日に挟まれた平日（国民の休日）
+  if(year>=1986){
+    const nationalHolidays=new Set(holidays.keys());
+    for(let month=1;month<=12;month++){
+      const days=new Date(Date.UTC(year,month,0)).getUTCDate();
+      for(let day=2;day<days;day++){
+        const key=`${year}-${pad2(month)}-${pad2(day)}`;
+        const prev=`${year}-${pad2(month)}-${pad2(day-1)}`;
+        const next=`${year}-${pad2(month)}-${pad2(day+1)}`;
+        if(!holidays.has(key)&&nationalHolidays.has(prev)&&nationalHolidays.has(next))add(month,day,"国民の休日");
+      }
+    }
+  }
+
+  // 2007年以降は、日曜の祝日の後にある最も近い祝日でない日が振替休日。
+  for(const [key,name] of [...holidays]){
+    const [,month,day]=key.split("-").map(Number);
+    if(weekday(month,day)!==0)continue;
+    if(year<2007){
+      const substitute=new Date(Date.UTC(year,month-1,day+1));
+      const substituteKey=`${year}-${pad2(substitute.getUTCMonth()+1)}-${pad2(substitute.getUTCDate())}`;
+      if(!holidays.has(substituteKey))holidays.set(substituteKey,"振替休日");
+    }else{
+      let offset=1;
+      while(offset<=7){
+        const substitute=new Date(Date.UTC(year,month-1,day+offset));
+        const substituteKey=`${substitute.getUTCFullYear()}-${pad2(substitute.getUTCMonth()+1)}-${pad2(substitute.getUTCDate())}`;
+        if(!holidays.has(substituteKey)){holidays.set(substituteKey,"振替休日");break;}
+        offset++;
+      }
+    }
+  }
+  japaneseHolidayCache.set(year,holidays);
+  return holidays;
+}
+function holidayName(date){return japaneseHolidays(date.getFullYear()).get(dateKey(date))||"";}
+function productBreakdown(plan={}){
+  const products=plan.products||{};
+  const boxed=qty(plan.bundle4)*2+qty(plan.bundle8)*4+qty(plan.bundle16)*8;
+  const custard=qty(products["カスタード"]),anko=qty(products["あんこ"]);
+  return {custardNormal:custard,ankoNormal:anko,custardBox:boxed,ankoBox:boxed,custardTotal:custard+boxed,ankoTotal:anko+boxed};
+}
 
 function showApp(user){
   currentUser=user;
@@ -62,24 +147,13 @@ function renderProductInputs(values={}){
 }
 function updateTotals(){
   const products={};document.querySelectorAll("[data-product]").forEach(i=>products[i.dataset.product]=qty(i.value));
-  const b4=qty($("bundle4").value),b8=qty($("bundle8").value),b16=qty($("bundle16").value);
-  const boxEach=b4*2+b8*4+b16*8;
-  const regularCustard=qty(products["カスタード"]),regularAnko=qty(products["あんこ"]);
-  const custardTotal=regularCustard+boxEach,ankoTotal=regularAnko+boxEach;
-  const otherTotal=sumProducts(Object.fromEntries(Object.entries(products).filter(([k])=>k!=="カスタード"&&k!=="あんこ")));
-  const bundlePieces=b4*4+b8*8+b16*16;
+  const individual=sumProducts(products),b4=qty($("bundle4").value),b8=qty($("bundle8").value),b16=qty($("bundle16").value),bundles=b4*4+b8*8+b16*16;
   $("bundle4Result").textContent=`${b4}セット × 4個 = ${b4*4}個`;
   $("bundle8Result").textContent=`${b8}セット × 8個 = ${b8*8}個`;
   $("bundle16Result").textContent=`${b16}セット × 16個 = ${b16*16}個`;
-  $("individualSubtotal").textContent=`${sumProducts(products)}個`;
-  $("bundleSubtotal").textContent=`${bundlePieces}個`;
-  $("regularCustard").textContent=`${regularCustard}個`;
-  $("regularAnko").textContent=`${regularAnko}個`;
-  $("boxCustard").textContent=`${boxEach}個`;
-  $("boxAnko").textContent=`${boxEach}個`;
-  $("totalCustard").textContent=`${custardTotal}個`;
-  $("totalAnko").textContent=`${ankoTotal}個`;
-  $("dayTotal").textContent=`${otherTotal+custardTotal+ankoTotal}個`;
+  $("individualSubtotal").textContent=`${individual}個`;
+  $("bundleSubtotal").textContent=`${bundles}個`;
+  $("dayTotal").textContent=`${individual+bundles}個`;
 }
 function clearForm(date=dateKey(new Date())){
   $("scheduleForm").reset();$("planDate").value=date;$("editingDate").value="";
@@ -103,21 +177,32 @@ function renderWeek(){
   const registered=rows.filter(x=>x.plan&&total(x.plan)>0).length;
   const individual=rows.reduce((s,x)=>s+sumProducts(x.plan?.products),0);
   const bundles=rows.reduce((s,x)=>s+bundleCount(x.plan),0);
-  const weeklyFlavors=rows.reduce((acc,x)=>{const f=flavorTotals(x.plan);for(const k of Object.keys(acc))acc[k]+=f[k];return acc;},
-    {regularCustard:0,regularAnko:0,boxCustard:0,boxAnko:0,totalCustard:0,totalAnko:0});
+  const flavor=rows.reduce((sum,x)=>{
+    const b=productBreakdown(x.plan);
+    sum.custardNormal+=b.custardNormal;sum.ankoNormal+=b.ankoNormal;
+    sum.custardBox+=b.custardBox;sum.ankoBox+=b.ankoBox;
+    sum.custardTotal+=b.custardTotal;sum.ankoTotal+=b.ankoTotal;
+    return sum;
+  },{custardNormal:0,ankoNormal:0,custardBox:0,ankoBox:0,custardTotal:0,ankoTotal:0});
   $("registeredDays").textContent=`${registered}日`;$("individualTotal").textContent=`${individual}個`;
-  $("bundleTotal").textContent=`${bundles}個`;$("grandTotal").textContent=`${rows.reduce((n,x)=>n+total(x.plan),0)}個`;
-  $("weekCustardBreakdown").textContent=`通常 ${weeklyFlavors.regularCustard}個 ＋ 箱入り ${weeklyFlavors.boxCustard}個`;
-  $("weekCustardTotal").textContent=`${weeklyFlavors.totalCustard}個`;
-  $("weekAnkoBreakdown").textContent=`通常 ${weeklyFlavors.regularAnko}個 ＋ 箱入り ${weeklyFlavors.boxAnko}個`;
-  $("weekAnkoTotal").textContent=`${weeklyFlavors.totalAnko}個`;
+  $("bundleTotal").textContent=`${bundles}個`;$("grandTotal").textContent=`${individual+bundles}個`;
+  $("flavorSummary").innerHTML=[
+    ["通常製作分",flavor.custardNormal,flavor.ankoNormal],
+    ["箱入り製作分",flavor.custardBox,flavor.ankoBox],
+    ["最終製作数",flavor.custardTotal,flavor.ankoTotal]
+  ].map(([title,custard,anko])=>`<article class="flavor-card"><strong>${title}</strong><p>カスタード <b>${custard.toLocaleString()}個</b><br>あんこ <b>${anko.toLocaleString()}個</b></p></article>`).join("");
   $("scheduleList").innerHTML=rows.map(({key,date,plan})=>{
-    const day=["日","月","火","水","木","金","土"][date.getDay()],label=`${date.getMonth()+1}/${date.getDate()}（${day}）`;
-    if(!plan||total(plan)===0)return `<article class="day-card"><div class="day-date">${label}<small>予定なし</small></div><div class="day-main"><strong>焼成予定なし</strong><p>この日の予定を登録できます。</p><div class="day-tools"><button class="mini" data-add="${key}">${plan?"編集":"＋ 予定を登録"}</button></div></div><div class="day-count">—</div></article>`;
-    const f=flavorTotals(plan);
-    const flavorDetail=`カスタード ${f.totalCustard}個（通常${f.regularCustard}＋箱${f.boxCustard}）／ あんこ ${f.totalAnko}個（通常${f.regularAnko}＋箱${f.boxAnko}）`;
-    const detail=[flavorDetail,plan.businessHours,plan.groupCount?`団体 ${plan.groupCount}人`:"",plan.notes].filter(Boolean).join(" ／ ");
-    return `<article class="day-card"><div class="day-date">${label}<small><span class="status ${plan.done?"done":""}">${plan.done?"焼成完了":"予定あり"}</span></small></div><div class="day-main"><strong>${escapeHtml(plan.eventName||"焼成予定")}</strong><p>${escapeHtml(detail||"備考なし")}</p><div class="day-tools"><button class="mini" data-edit="${key}">編集</button><button class="mini" data-done="${key}">${plan.done?"未完了に戻す":"完了にする"}</button></div></div><div class="day-count">${total(plan).toLocaleString()}個<small>予定数量</small></div></article>`;
+    const day=["日","月","火","水","木","金","土"][date.getDay()];
+    const dayHoliday=holidayName(date);
+    const calendarClass=dayHoliday?"calendar-holiday":date.getDay()===0?"calendar-sunday":date.getDay()===6?"calendar-saturday":"";
+    const dayLabel=`${date.getMonth()+1}/${date.getDate()}（<span class="weekday-label">${day}</span>）`;
+    const holidayCaption=dayHoliday?`<small class="holiday-name">${escapeHtml(dayHoliday)}</small>`:"";
+    const dateMarkup=`<div class="day-date ${calendarClass}" title="${escapeHtml(dayHoliday)}"><span class="date-label">${dayLabel}</span>${holidayCaption}`;
+    if(!plan||total(plan)===0)return `<article class="day-card ${calendarClass}">${dateMarkup}<small>予定なし</small></div><div class="day-main"><strong>焼成予定なし</strong><p>この日の予定を登録できます。</p><div class="day-tools"><button class="mini" data-add="${key}">${plan?"編集":"＋ 予定を登録"}</button></div></div><div class="day-count">—</div></article>`;
+    const detail=[plan.businessHours,plan.groupCount?`団体 ${plan.groupCount}人`:"",plan.notes].filter(Boolean).join(" ／ ");
+    const breakdown=productBreakdown(plan);
+    const flavorLine=`カスタード ${breakdown.custardTotal.toLocaleString()}個 ／ あんこ ${breakdown.ankoTotal.toLocaleString()}個`;
+    return `<article class="day-card ${calendarClass}">${dateMarkup}<small><span class="status ${plan.done?"done":""}">${plan.done?"焼成完了":"予定あり"}</span></small></div><div class="day-main"><strong>${escapeHtml(plan.eventName||"焼成予定")}</strong><p>${escapeHtml(detail||"備考なし")}<span class="production-detail">${flavorLine}</span></p><div class="day-tools"><button class="mini" data-edit="${key}">編集</button><button class="mini" data-done="${key}">${plan.done?"未完了に戻す":"完了にする"}</button></div></div><div class="day-count">${total(plan).toLocaleString()}個<small>予定数量</small></div></article>`;
   }).join("");
   $("scheduleList").querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>{const key=b.dataset.add;if(plans[key])fillForm(key);else clearForm(key);$("editorPanel").scrollIntoView({behavior:"smooth",block:"start"});});
   $("scheduleList").querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>fillForm(b.dataset.edit));

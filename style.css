@@ -87,73 +87,53 @@ footer{text-align:center;color:#a0a8b6;font-size:10px;letter-spacing:.15em;paddi
 .account-bar.hidden{display:none}
 @media(max-width:700px){.account-bar{margin:-20px auto 18px;justify-content:space-between}}
 
-.flavor-week-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
-.flavor-week-grid article{background:#f7f8fc;border:1px solid #e5e9f0;border-radius:12px;padding:14px}
-.flavor-week-grid span,.flavor-week-grid small{display:block;color:#69758a;font-size:11px}
-.flavor-week-grid strong{display:block;font-size:24px;color:#1c376b;margin:4px 0}
-.flavor-table{border:1px solid #e5e9f0;border-radius:12px;overflow:hidden}
-.flavor-row{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:8px;padding:12px;font-size:12px;border-bottom:1px solid #edf0f5;align-items:center}
-.flavor-row:last-child{border-bottom:0}
-.flavor-row span:not(:first-child),.flavor-row strong:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
-.flavor-head{background:#f5f7fb;color:#69758a;font-weight:700}
-.flavor-total{background:#eaf0ff;color:#1c376b}
-.flavor-total strong{font-size:15px}
-@media(max-width:700px){.flavor-week-grid{grid-template-columns:1fr}.flavor-row{padding:10px 8px;font-size:11px}}
-
-/* v1.4: Zekkyo-yaki package inspired warm Japanese palette */
-:root{
-  color:#332b25;
-  background:#f4eee2;
-  --ink:#332b25;
-  --cream:#f4eee2;
-  --paper:#fffaf0;
-  --orange:#d97732;
-  --orange-deep:#b95727;
-  --red:#b9362d;
-  --red-deep:#8f2925;
-  --teal:#789b88;
-  --teal-light:#e5eee6;
-  --fuji:#527d9b;
-  --line:#e5d8c5;
-}
-body{background:#f4eee2;color:#332b25}
-.topbar{background:#a9322b;color:#fff;border-bottom:6px solid #d97732}
-.eyebrow{color:#a97853}
-.topbar .eyebrow{color:#f4d5b5}
-.connection{border-color:#e5a59a;color:#fff2df}
-.connection.online{background:#315e50;color:#f0f6e9;border-color:#8eb5a0}
-.panel{background:#fffaf0;border-color:#e5d8c5;box-shadow:0 5px 18px #6b44200d}
-.week-head{background:#fffaf0}
-.button.primary{background:#b9362d;color:#fffaf0}
-.button.primary:hover{background:#8f2925}
-.button.secondary{background:#eee4d4;color:#594638}
-.button.danger{background:#fae7df;color:#9c3028}
-.summary-card{background:#fffaf0;border-color:#e5d8c5}
-.summary-card.accent{background:#e7eee4;border-color:#cbd9c8}
-.summary-card.accent strong{color:#416b59}
-.day-card{background:#fffdf7;border-color:#e5d8c5}
-.day-tools .mini{background:#f2e7d7;color:#80543a}
-.status{background:#f9ead3;color:#985b21}
-.status.done{background:#e2eee4;color:#356b50}
-.empty{background:#f5eee3;color:#8b7968}
-input,textarea{border-color:#ddcfbb;background:#fffdf8;color:#332b25}
-input:focus,textarea:focus{outline:2px solid #c8a27d;border-color:#b9774e}
-label{color:#665343}
-.product-grid label,.bundle-grid label{background:#f5eee3}
-.subsection{border-color:#eadfce}
-.subtotal strong{color:#a63c2e}
-.total-box{background:#a9322b;color:#fffaf0;border:1px solid #d97732}
-.total-box small{color:#f5d8c3}
-.flavor-week-grid article{background:#eaf0e8;border-color:#d2dfd0}
-.flavor-week-grid strong{color:#416b59}
-.flavor-row{border-color:#eadfce}
-.flavor-head{background:#f3e8d8;color:#765b45}
-.flavor-total{background:#e7eee4;color:#345e4d}
-.flavor-total strong{color:#345e4d}
-.subtotal,.day-main p,.summary-card span{color:#776b5d}
-input[type="checkbox"]{accent-color:#b9362d}
-a{color:#a9322b}
-@media print{
-  body{background:#fff}
-  .topbar{background:#a9322b!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+/* v1.4 絶叫焼きカラーと曜日・祝日表示 */
+:root{color:#342e29;background:#f7f1e5}
+body{background:#f7f1e5}
+.topbar{background:#c64936}
+.topbar .eyebrow{color:#f5c8a8}
+.connection{border-color:#f0b7a3}
+.connection.online{background:#e6f2dc;color:#426d46;border-color:#c6dfbd}
+.panel{background:#fffdf8;border-color:#eadfce;box-shadow:0 5px 18px #4b392008}
+.button.primary{background:#c64936;color:#fff}
+.button.secondary{background:#f1e9db;color:#4e493f}
+.button.danger{background:#fff0ea;color:#b42318}
+.summary-card{background:#eef3e8;border-color:#dae5d1}
+.summary-card span{color:#6c7566}
+.summary-card strong{color:#506648}
+.summary-card.accent{background:#e9f0f4;border-color:#d4e1e9}
+.summary-card.accent strong{color:#47779b}
+.day-card{background:#fffefa;border-color:#e9e0d2}
+.day-date small{color:#84786d}
+.day-main p{color:#716b62}
+.mini{background:#f1eadc;color:#514b42}
+label{color:#5a544b}
+input,textarea{border-color:#e1d8ca;color:#342e29;background:#fffefa}
+input:focus,textarea:focus{outline:2px solid #bed3df;border-color:#6e9bb5}
+.product-grid label,.bundle-grid label{background:#faf6ed}
+.bundle-grid small{color:#777063}
+.subtotal{color:#716a5f}
+.subtotal strong{color:#c64936}
+.total-box{background:#c64936}
+.total-box small{color:#ffe1cf}
+footer{color:#9c9387}
+.day-card.calendar-saturday{border-left:4px solid #4d82a7}
+.day-card.calendar-sunday,.day-card.calendar-holiday{border-left:4px solid #c64936}
+.day-date.calendar-saturday .weekday-label{color:#4d82a7}
+.day-date.calendar-sunday .weekday-label,.day-date.calendar-holiday .weekday-label{color:#c64936}
+.day-date .holiday-name{color:#c64936;font-weight:800}
+.production-detail{display:block;margin-top:4px;color:#58744b;font-weight:700}
+.production-summary{padding:18px 22px}
+.production-summary .subsection-title{margin:0 0 14px}
+.production-summary h3{font-size:16px;margin:4px 0 0}
+.flavor-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.flavor-card{padding:14px 16px;border:1px solid #e2e8d9;border-radius:12px;background:#f4f6ee}
+.flavor-card strong{font-size:13px;color:#536a47}
+.flavor-card p{margin:7px 0 0;font-size:12px;line-height:1.8;color:#6d6a5d}
+.flavor-card b{float:right;color:#3f5740;font-size:14px}
+@media(max-width:700px){
+ .production-summary{padding:16px}
+ .production-summary .subsection-title{align-items:flex-start;gap:6px}
+ .flavor-grid{grid-template-columns:1fr;gap:7px}
+ .flavor-card{padding:11px 13px}
 }

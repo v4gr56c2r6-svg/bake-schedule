@@ -1,30 +1,29 @@
-# 絶叫焼き・焼成スケジュール v1.1
+# 絶叫焼き・焼成スケジュール v1.4
 
-## 実装内容
-- Firebase Authentication（メール/パスワード）
-- 初回アカウント登録・ログイン・ログアウト
-- Firestoreに本人UID付きで保存
-- Firestoreクエリはログイン中のUIDで絞り込み
-- 週間予定、商品別入力、4個/8個セット換算、合計、自動計算、編集/削除、完了チェック
+## 主な機能
+- Firebase Authenticationでのアカウント登録、ログイン、ログアウト
+- 週間予定の登録、編集、削除、焼成完了チェック
+- 商品別数量と4個・8個・16個入りセットの合計換算
+- 箱入り商品はカスタードとあんこを半分ずつにして集計
+- 週間・日別のカスタード、あんこ製作数を表示
+- 土曜日は青系、日曜日と日本の祝日・振替休日は赤系で表示
+- 日本の祝日を年ごとに計算し、祝日に挟まれた休日も表示
 
-## Firebase Consoleで行うこと
-1. Authentication → 始める → Sign-in method → メール/パスワードを有効化
-2. Firestore Database → データベースを作成（本番モード）
-3. ロケーションは `asia-northeast1`（東京）を推奨
-4. Firestore Database → ルールに同梱の `firestore.rules` を貼り付けて公開
+## 既存のFirebase設定と保存データ
+Firebase設定は `firebase-config.js` に含まれています。Firestoreのコレクション、日付ID、保存フィールド、`ownerUid` は変更していません。Firebase設定ファイルと `firestore.rules` の置き換えは不要です。
 
-## Webアプリ設定
-Firebase設定は `firebase-config.js` に入力済みです。
-このファイルはブラウザから見える公開設定です。秘密鍵は含めないでください。
+## GitHub Pagesで更新する
+1. ZIPを解凍します。
+2. 既存の `bake-schedule` リポジトリを開き、`app.js`、`index.html`、`style.css`、`README.md` を置き換えます。
+3. GitHubで変更をコミットします。
+4. Pagesの再公開後、アプリを再読み込みします。
 
-## GitHub Pages
-1. ZIPを解凍
-2. 中のファイルを新規GitHubリポジトリのルートにアップロード
-3. Settings → Pages → Deploy from a branch → main / root
-4. 公開されたURLを開く
-5. 初回はメールアドレスと6文字以上のパスワードで新規登録
+## 新規に公開する場合
+1. ZIPを解凍し、ファイル一式をGitHubリポジトリのルートにアップロードします。
+2. Settings → Pages → Deploy from a branch → `main` / root を選びます。
+3. 公開されたURLを開き、初回はメールアドレスと6文字以上のパスワードで登録します。
 
-## セキュリティ
-FirestoreルールはログインUIDと各ドキュメントの `ownerUid` を照合します。
-初回アカウントを作った後、Firebase Authenticationのユーザー一覧に自分のアカウントがあることを確認してください。
-Google Cloud/FirebaseのAPIキー制限は必要に応じて設定できますが、Firebase Authentication/Firestoreへのアクセス制御は必ずSecurity Rulesで行います。
+## Firebaseを初めて設定する場合
+1. Authenticationでメール/パスワード認証を有効にします。
+2. Firestore Databaseを作成します（ロケーションは `asia-northeast1` を推奨）。
+3. 同梱の `firestore.rules` をFirebase Consoleのルールに設定します。
