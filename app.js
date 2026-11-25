@@ -30,6 +30,7 @@ let shelfLifeSettings = {regularDays:null,boxedDays:null};
 let materialOrderSettings = defaultMaterialOrderSettings();
 let weeklyInventory = {};
 let excludeNonBusinessDays = true;
+let inventorySaveTimer = null, inventorySaveChain = Promise.resolve(), inventorySaveRevision = 0;
 let weekStart = mondayOf(new Date());
 
 function mondayOf(date){const d=new Date(date.getFullYear(),date.getMonth(),date.getDate());d.setDate(d.getDate()-((d.getDay()+6)%7));return d;}
@@ -218,6 +219,52 @@ function currentWeekStockKg(materialId){
   if(input&&input.dataset.weekKey===weekKey)return normalizeOptionalNumber(input.value);
   return weeklyInventory[weekKey]?.[materialId]??null;
 }
+function readWeeklyInventoryInputs(){
+  const weekKey=dateKey(weekStart),values={};
+  for(const material of MATERIALS){
+    const input=document.querySelector(`[data-stock-kg="${material.id}"]`),raw=input?.value??"",amount=normalizeOptionalNumber(raw);
+    if(raw!==""&&amount===null)return {error:"在庫は0以上の数値で入力してください。"};
+    values[material.id]=amount;
+  }
+  return {weekKey,values};
+}
+function queueWeeklyInventorySave(snapshot,revision){
+  const save=async()=>{
+    const previous=weeklyInventory,nextWeek={...(weeklyInventory[snapshot.weekKey]||{}),...snapshot.values};
+    weeklyInventory={...weeklyInventory,[snapshot.weekKey]:nextWeek};
+    try{
+      await saveAppSettings();
+      if(revision===inventorySaveRevision)$("inventoryMessage").textContent="週初在庫を自動保存しました。";
+      return true;
+    }catch(error){
+      weeklyInventory=previous;console.error(error);
+      if(revision===inventorySaveRevision)$("inventoryMessage").textContent=`保存できませんでした：${error.message}`;
+      return false;
+    }
+  };
+  inventorySaveChain=inventorySaveChain.then(save,save);
+  return inventorySaveChain;
+}
+function scheduleWeeklyInventorySave(){
+  if(inventorySaveTimer)clearTimeout(inventorySaveTimer);
+  const snapshot=readWeeklyInventoryInputs();
+  if(snapshot.error){$("inventoryMessage").textContent=snapshot.error;return;}
+  const revision=++inventorySaveRevision;
+  $("inventoryMessage").textContent="入力内容を自動保存します…";
+  inventorySaveTimer=setTimeout(()=>{
+    inventorySaveTimer=null;
+    queueWeeklyInventorySave(snapshot,revision);
+  },600);
+}
+async function saveWeeklyInventoryNow(){
+  if(inventorySaveTimer)clearTimeout(inventorySaveTimer);
+  inventorySaveTimer=null;
+  const snapshot=readWeeklyInventoryInputs();
+  if(snapshot.error){$("inventoryMessage").textContent=snapshot.error;return;}
+  const revision=++inventorySaveRevision;
+  $("inventoryMessage").textContent="週初在庫を保存しています…";
+  await queueWeeklyInventorySave(snapshot,revision);
+}
 function normalizeDayCount(value){
   if(value===null||value===undefined||value==="")return null;
   const days=Number(value);
@@ -290,7 +337,7 @@ function renderMaterialSummary(){
     const remaining=stockKg===null?"在庫未入力":formatMaterialAmount(stockKg*1000-requiredGrams).main;
     return `<article class="material-card" data-required-grams="${requiredGrams}"><strong>${material.name}</strong><div class="material-need">${amount.main}</div>${amount.detail?`<small class="material-exact">${amount.detail}</small>`:""}<label class="material-stock-label">週初在庫（kg）<input type="number" min="0" step="0.001" inputmode="decimal" data-stock-kg="${material.id}" data-week-key="${dateKey(weekStart)}" value="${stockKg??""}" placeholder="例：10"></label><div class="material-remaining"><span>理論残数</span><strong id="material-remaining-${material.id}">${remaining}</strong></div></article>`;
   }).join("");
-  document.querySelectorAll("[data-stock-kg]").forEach(input=>input.addEventListener("input",()=>{updateMaterialBalances();renderOrderResults();}));
+  document.querySelectorAll("[data-stock-kg]").forEach(input=>input.addEventListener("input",()=>{updateMaterialBalances();renderOrderResults();scheduleWeeklyInventorySave();}));
   updateMaterialBalances();
 }
 function updateMaterialBalances(){
@@ -582,7 +629,11 @@ function authError(e){
   const map={"auth/email-already-in-use":"このメールアドレスは登録済みです。ログインしてください。","auth/invalid-email":"メールアドレスの形式を確認してください。","auth/weak-password":"パスワードは6文字以上にしてください。","auth/invalid-credential":"メールアドレスまたはパスワードが違います。","auth/too-many-requests":"試行回数が多すぎます。しばらくしてから再度お試しください。"};
   return map[e.code]||`認証エラー：${e.message}`;
 }
-$("logoutButton").onclick=()=>signOut(auth);
+$("logoutButton").onclick=async()=>{
+  if(inventorySaveTimer)await saveWeeklyInventoryNow();
+  else await inventorySaveChain;
+  await signOut(auth);
+};
 $("shelfLifeForm").addEventListener("submit",async e=>{
   e.preventDefault();$("shelfLifeMessage").textContent="";
   if(!db||!currentUser){$("shelfLifeMessage").textContent="ログイン後に設定を保存できます。";return;}
@@ -602,18 +653,8 @@ $("shelfLifeForm").addEventListener("submit",async e=>{
   }
 });
 $("materialInventoryForm").addEventListener("submit",async e=>{
-  e.preventDefault();$("inventoryMessage").textContent="";
-  const weekKey=dateKey(weekStart),nextWeek={...(weeklyInventory[weekKey]||{})};
-  for(const material of MATERIALS){
-    const input=document.querySelector(`[data-stock-kg="${material.id}"]`),value=input?.value??"";
-    const amount=normalizeOptionalNumber(value);
-    if(value!==""&&amount===null){$("inventoryMessage").textContent="在庫は0以上の数値で入力してください。";return;}
-    nextWeek[material.id]=amount;
-  }
-  const previousInventory=weeklyInventory;
-  weeklyInventory={...weeklyInventory,[weekKey]:nextWeek};
-  try{await saveAppSettings();renderWeek();$("inventoryMessage").textContent="週初在庫を保存しました。";}
-  catch(error){weeklyInventory=previousInventory;console.error(error);$("inventoryMessage").textContent=`保存できませんでした：${error.message}`;}
+  e.preventDefault();
+  await saveWeeklyInventoryNow();
 });
 $("orderSettingsForm").addEventListener("submit",async e=>{
   e.preventDefault();$("orderSettingsMessage").textContent="";
