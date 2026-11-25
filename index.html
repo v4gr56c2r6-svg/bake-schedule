@@ -124,6 +124,7 @@
           <p class="order-help">理論残数が不足する日から納期を引いて期限を表示します。発注数は不足分を1発注単位ごとに切り上げます。</p>
           <p id="orderBasis" class="material-basis">対象週：週間予定</p>
           <form id="orderSettingsForm">
+            <label class="business-days-toggle"><input id="excludeNonBusinessDays" type="checkbox" checked>納期計算で土日祝を除く</label>
             <div id="orderSettingsGrid" class="order-settings-grid"></div>
             <div class="form-actions"><button class="button primary" type="submit">発注情報を保存</button></div>
             <p id="orderSettingsMessage" class="message" aria-live="polite"></p>

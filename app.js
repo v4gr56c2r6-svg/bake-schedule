@@ -23,6 +23,7 @@ let db = null, auth = null, currentUser = null, plans = {};
 let shelfLifeSettings = {regularDays:null,boxedDays:null};
 let materialOrderSettings = defaultMaterialOrderSettings();
 let weeklyInventory = {};
+let excludeNonBusinessDays = true;
 let weekStart = mondayOf(new Date());
 
 function mondayOf(date){const d=new Date(date.getFullYear(),date.getMonth(),date.getDate());d.setDate(d.getDate()-((d.getDay()+6)%7));return d;}
@@ -129,6 +130,18 @@ function japaneseHolidays(year){
   return holidays;
 }
 function holidayName(date){return japaneseHolidays(date.getFullYear()).get(dateKey(date))||"";}
+function isBusinessDay(date){return date.getDay()!==0&&date.getDay()!==6&&!holidayName(date);}
+function orderDeadlineDate(shortageDate,leadDays,excludeClosedDays){
+  const dueDate=parseDate(shortageDate);
+  if(!excludeClosedDays){dueDate.setDate(dueDate.getDate()-leadDays);return dueDate;}
+  let remainingDays=leadDays;
+  while(remainingDays>0){
+    dueDate.setDate(dueDate.getDate()-1);
+    if(isBusinessDay(dueDate))remainingDays--;
+  }
+  while(!isBusinessDay(dueDate))dueDate.setDate(dueDate.getDate()-1);
+  return dueDate;
+}
 function productBreakdown(plan={}){
   const products=plan.products||{};
   const boxed=qty(plan.bundle4)*2+qty(plan.bundle8)*4+qty(plan.bundle16)*8;
@@ -266,15 +279,18 @@ function currentOrderConfig(materialId){
   };
 }
 function renderOrderSettings(){
+  $("excludeNonBusinessDays").checked=excludeNonBusinessDays;
   $("orderSettingsGrid").innerHTML=MATERIALS.map(material=>{
     const settings=materialOrderSettings[material.id]||{leadDays:null,orderPackKg:null,orderUnit:""};
     return `<article class="order-card"><h3>${material.name}</h3><div class="order-input-grid"><label>仕入れ納期（日）<input type="number" min="0" step="1" inputmode="numeric" data-lead-days="${material.id}" value="${settings.leadDays??""}" placeholder="例：3"></label><label>1発注単位（kg）<input type="number" min="0" step="0.001" inputmode="decimal" data-order-pack-kg="${material.id}" value="${settings.orderPackKg??""}" placeholder="例：20"></label><label>単位名<input type="text" maxlength="16" data-order-unit="${material.id}" value="${escapeHtml(settings.orderUnit)}" placeholder="例：袋"></label></div><div class="order-result-grid"><div><span>発注期限</span><strong id="order-deadline-${material.id}">—</strong></div><div><span>発注数</span><strong id="order-quantity-${material.id}">—</strong><small id="order-amount-${material.id}"></small></div></div></article>`;
   }).join("");
   document.querySelectorAll("[data-lead-days],[data-order-pack-kg],[data-order-unit]").forEach(input=>input.addEventListener("input",renderOrderResults));
+  $("excludeNonBusinessDays").onchange=renderOrderResults;
   renderOrderResults();
 }
 function renderOrderResults(){
   const dates=weekDates(),projected=plansWithCurrentDraft();
+  const excludeClosedDays=$("excludeNonBusinessDays").checked;
   const weeklyPieces=dates.reduce((sum,date)=>sum+total(projected[dateKey(date)]),0);
   $("orderBasis").textContent=`対象週：${$("weekLabel").textContent} ／ 予定 ${weeklyPieces.toLocaleString()}個分`;
   MATERIALS.forEach(material=>{
@@ -294,7 +310,7 @@ function renderOrderResults(){
     }
     if(config.leadDays===null){deadline.textContent="納期未入力";}
     else if(shortageDate){
-      const dueDate=parseDate(shortageDate);dueDate.setDate(dueDate.getDate()-config.leadDays);
+      const dueDate=orderDeadlineDate(shortageDate,config.leadDays,excludeClosedDays);
       const todayKey=dateKey(new Date()),dueKey=dateKey(dueDate);
       const dueLabel=`${dueDate.getMonth()+1}/${dueDate.getDate()}まで`;
       deadline.textContent=dueKey<todayKey?`${dueLabel}（期限超過）`:dueKey===todayKey?`${dueLabel}（本日）`:dueLabel;
@@ -353,7 +369,7 @@ function showApp(user){
     loadPlans();
   }else{
     activateTab("home");
-    plans={};shelfLifeSettings={regularDays:null,boxedDays:null};materialOrderSettings=defaultMaterialOrderSettings();weeklyInventory={};
+    plans={};shelfLifeSettings={regularDays:null,boxedDays:null};materialOrderSettings=defaultMaterialOrderSettings();weeklyInventory={};excludeNonBusinessDays=true;
     renderShelfLifeForm();renderOrderSettings();renderWeek();
     $("connection").textContent="ログインしてください";
     $("connection").classList.remove("online");
@@ -449,13 +465,14 @@ async function loadPlans(){
   try{
     const q=query(collection(db,"bakeSchedules"),where("ownerUid","==",currentUser.uid));
     const snap=await getDocs(q);plans={};shelfLifeSettings={regularDays:null,boxedDays:null};
-    materialOrderSettings=defaultMaterialOrderSettings();weeklyInventory={};
+    materialOrderSettings=defaultMaterialOrderSettings();weeklyInventory={};excludeNonBusinessDays=true;
     snap.forEach(d=>{
       const data=d.data();
       if(d.id===SETTINGS_DOC_ID){
         shelfLifeSettings={regularDays:normalizeDayCount(data.regularShelfDays),boxedDays:normalizeDayCount(data.boxedShelfDays)};
         materialOrderSettings=normalizeMaterialOrderSettings(data.materialOrderSettings);
         weeklyInventory=normalizeWeeklyInventory(data.weeklyInventory);
+        excludeNonBusinessDays=data.excludeNonBusinessDays!==false;
       }else plans[d.id]=data;
     });
     renderShelfLifeForm();renderOrderSettings();renderWeek();
@@ -469,6 +486,7 @@ async function saveAppSettings(){
     boxedShelfDays:shelfLifeSettings.boxedDays,
     materialOrderSettings,
     weeklyInventory,
+    excludeNonBusinessDays,
     updatedAt:new Date().toISOString()
   });
 }
@@ -546,9 +564,11 @@ $("orderSettingsForm").addEventListener("submit",async e=>{
     nextSettings[material.id]={leadDays,orderPackKg:packKg,orderUnit:String(unitInput?.value||"").trim().slice(0,16)};
   }
   const previousSettings=materialOrderSettings;
+  const previousExcludeNonBusinessDays=excludeNonBusinessDays;
   materialOrderSettings=nextSettings;
+  excludeNonBusinessDays=$("excludeNonBusinessDays").checked;
   try{await saveAppSettings();renderOrderSettings();$("orderSettingsMessage").textContent="発注情報を保存しました。";}
-  catch(error){materialOrderSettings=previousSettings;renderOrderSettings();console.error(error);$("orderSettingsMessage").textContent=`保存できませんでした：${error.message}`;}
+  catch(error){materialOrderSettings=previousSettings;excludeNonBusinessDays=previousExcludeNonBusinessDays;renderOrderSettings();console.error(error);$("orderSettingsMessage").textContent=`保存できませんでした：${error.message}`;}
 });
 $("scheduleForm").addEventListener("submit",async e=>{
   e.preventDefault();const key=$("planDate").value;if(!key){$("formMessage").textContent="日付を入力してください。";return;}
