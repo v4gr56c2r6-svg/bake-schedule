@@ -33,8 +33,14 @@
       </form>
     </section>
     <section id="appContent" class="hidden">
+      <nav class="tab-nav" role="tablist" aria-label="アプリの画面">
+        <button id="tab-home" class="tab-button active" type="button" role="tab" aria-selected="true" aria-controls="tabPanel-home" data-tab="home">ホーム</button>
+        <button id="tab-materials" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tabPanel-materials" data-tab="materials">材料</button>
+        <button id="tab-shelf-life" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tabPanel-shelf-life" data-tab="shelf-life">賞味期限設定</button>
+        <button id="tab-schedule" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tabPanel-schedule" data-tab="schedule">予定表</button>
+      </nav>
 
-    <section class="week-head panel">
+      <div id="weekToolbar" class="week-head panel hidden">
       <div>
         <p class="eyebrow">WEEKLY PLAN</p>
         <h2 id="weekLabel">週間予定</h2>
@@ -44,9 +50,34 @@
         <button id="thisWeek" class="button secondary" type="button">今週</button>
         <button id="nextWeek" class="button secondary" type="button">翌週 ›</button>
       </div>
-    </section>
+      </div>
 
-    <section class="summary-grid">
+      <div id="tabPanel-home" class="tab-panel" role="tabpanel" aria-labelledby="tab-home" tabindex="0">
+        <section class="panel today-panel">
+          <div class="section-title">
+            <div><p class="eyebrow">HOME / TODAY</p><h2>当日の製作数</h2><p id="todayDate" class="today-date"></p></div>
+          </div>
+          <div class="today-count-grid">
+            <article class="today-count-card">
+              <h3>通常商品</h3>
+              <div id="todayRegularCounts" class="today-count-list"></div>
+            </article>
+            <article class="today-count-card">
+              <h3>箱入り商品</h3>
+              <div id="todayBoxCounts" class="today-count-list"></div>
+              <small id="todayBundleDetail" class="today-bundle-detail"></small>
+            </article>
+            <article class="today-count-card today-total-card">
+              <h3>当日の製作合計</h3>
+              <strong id="todayTotal">0個</strong>
+              <small id="todayPlanStatus">予定なし</small>
+            </article>
+          </div>
+        </section>
+      </div>
+
+      <div id="tabPanel-materials" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-materials" tabindex="0">
+      <section class="summary-grid">
       <article class="summary-card">
         <span>登録日数</span><strong id="registeredDays">0日</strong>
       </article>
@@ -77,8 +108,10 @@
       <p id="materialBasis" class="material-basis">週間予定 0個 ／ 400個仕込み 0回分</p>
       <div id="materialSummary" class="material-grid"></div>
     </section>
+      </div>
 
-    <section class="panel shelf-life-panel" aria-labelledby="shelfLifeTitle">
+      <div id="tabPanel-shelf-life" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-shelf-life" tabindex="0">
+      <section class="panel shelf-life-panel" aria-labelledby="shelfLifeTitle">
       <div class="section-title">
         <div><p class="eyebrow">EXPIRY SETTINGS</p><h2 id="shelfLifeTitle">賞味期限の設定</h2></div>
       </div>
@@ -97,9 +130,11 @@
         </div>
         <p id="shelfLifeMessage" class="message" aria-live="polite"></p>
       </form>
-    </section>
+      </section>
+      </div>
 
-    <section class="panel">
+      <div id="tabPanel-schedule" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-schedule" tabindex="0">
+      <section class="panel">
       <div class="section-title">
         <div><p class="eyebrow">SCHEDULE</p><h2>今週の予定</h2></div>
         <button id="addToday" class="button primary" type="button">＋ 予定を追加</button>
@@ -178,7 +213,8 @@
         </div>
         <p id="formMessage" class="message" aria-live="polite"></p>
       </form>
-    </section>
+      </section>
+      </div>
 
     <footer>BAKE SCHEDULE · 絶叫焼き専用</footer>
     </section>

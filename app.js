@@ -210,6 +210,36 @@ function renderMaterialSummary(){
     return `<article class="material-card"><strong>${material.name}</strong><span>${amount.main}</span>${amount.detail?`<small>${amount.detail}</small>`:""}</article>`;
   }).join("");
 }
+function renderTodaySummary(){
+  const today=new Date(),key=dateKey(today);
+  let plan=plans[key]||{};
+  const editingKey=$("editingDate").value,planKey=$("planDate").value,draft=currentFormPlan();
+  if(editingKey===key)plan=draft;
+  else if(!editingKey&&planKey===key&&!plans[key]&&total(draft)>0)plan=draft;
+  const weekdays=["日","月","火","水","木","金","土"];
+  $("todayDate").textContent=`${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日（${weekdays[today.getDay()]}）`;
+  const products=plan.products||{};
+  $("todayRegularCounts").innerHTML=PRODUCTS.map(name=>`<div class="today-count-row"><span>${name}</span><strong>${qty(products[name]).toLocaleString()}個</strong></div>`).join("");
+  const breakdown=productBreakdown(plan);
+  $("todayBoxCounts").innerHTML=[
+    ["カスタード",breakdown.custardBox],
+    ["あんこ",breakdown.ankoBox]
+  ].map(([name,count])=>`<div class="today-count-row"><span>${name}</span><strong>${count.toLocaleString()}個</strong></div>`).join("");
+  const bundleSets=qty(plan.bundle4)+qty(plan.bundle8)+qty(plan.bundle16);
+  $("todayBundleDetail").textContent=`${bundleSets.toLocaleString()}セット・${bundleCount(plan).toLocaleString()}個`;
+  $("todayTotal").textContent=`${total(plan).toLocaleString()}個`;
+  $("todayPlanStatus").textContent=total(plan)>0?`予定あり${plan.eventName?`：${plan.eventName}`:""}`:"予定なし";
+}
+function activateTab(name){
+  document.querySelectorAll(".tab-button").forEach(button=>{
+    const active=button.dataset.tab===name;
+    button.classList.toggle("active",active);
+    button.setAttribute("aria-selected",String(active));
+    button.tabIndex=active?0:-1;
+  });
+  document.querySelectorAll(".tab-panel").forEach(panel=>panel.classList.toggle("hidden",panel.id!==`tabPanel-${name}`));
+  $("weekToolbar").classList.toggle("hidden",name!=="materials"&&name!=="schedule");
+}
 
 function showApp(user){
   currentUser=user;
@@ -217,11 +247,13 @@ function showApp(user){
   $("appContent").classList.toggle("hidden",!user);
   $("accountBar").classList.toggle("hidden",!user);
   if(user){
+    activateTab("home");
     $("accountEmail").textContent=user.email||"ログイン中";
     $("connection").textContent="Firebase接続済み";
     $("connection").classList.add("online");
     loadPlans();
   }else{
+    activateTab("home");
     plans={};shelfLifeSettings={regularDays:null,boxedDays:null};renderShelfLifeForm();renderWeek();
     $("connection").textContent="ログインしてください";
     $("connection").classList.remove("online");
@@ -242,6 +274,7 @@ function updateTotals(){
   $("bundleSubtotal").textContent=`${bundles}個`;
   $("dayTotal").textContent=`${individual+bundles}個`;
   renderMaterialSummary();
+  renderTodaySummary();
 }
 function clearForm(date=dateKey(new Date())){
   $("scheduleForm").reset();$("planDate").value=date;$("editingDate").value="";
@@ -276,6 +309,7 @@ function renderWeek(){
   $("registeredDays").textContent=`${registered}日`;$("individualTotal").textContent=`${individual}個`;
   $("bundleTotal").textContent=`${bundles}個`;$("grandTotal").textContent=`${weeklyPieces}個`;
   renderMaterialSummary();
+  renderTodaySummary();
   $("flavorSummary").innerHTML=[
     ["通常製作分",flavor.custardNormal,flavor.ankoNormal],
     ["箱入り製作分",flavor.custardBox,flavor.ankoBox],
@@ -382,12 +416,13 @@ $("deleteButton").onclick=async()=>{
 };
 $("clearForm").onclick=()=>clearForm($("planDate").value||dateKey(new Date()));
 $("addToday").onclick=()=>{clearForm(dateKey(new Date()));$("editorPanel").scrollIntoView({behavior:"smooth"});};
+document.querySelectorAll(".tab-button").forEach(button=>button.addEventListener("click",()=>activateTab(button.dataset.tab)));
 ["bundle4","bundle8","bundle16"].forEach(id=>$(id).addEventListener("input",updateTotals));
 $("planDate").addEventListener("change",updateTotals);
 $("prevWeek").onclick=()=>{weekStart.setDate(weekStart.getDate()-7);renderWeek();};
 $("nextWeek").onclick=()=>{weekStart.setDate(weekStart.getDate()+7);renderWeek();};
 $("thisWeek").onclick=()=>{weekStart=mondayOf(new Date());renderWeek();};
 
-renderProductInputs();clearForm();renderWeek();
+activateTab("home");renderProductInputs();clearForm();renderWeek();
 const app=initializeApp(firebaseConfig);db=getFirestore(app);auth=getAuth(app);
 onAuthStateChanged(auth,showApp);
