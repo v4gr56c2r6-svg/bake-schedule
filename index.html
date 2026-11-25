@@ -37,6 +37,7 @@
         <button id="tab-home" class="tab-button active" type="button" role="tab" aria-selected="true" aria-controls="tabPanel-home" data-tab="home">ホーム</button>
         <button id="tab-schedule" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tabPanel-schedule" data-tab="schedule">予定表</button>
         <button id="tab-materials" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tabPanel-materials" data-tab="materials">材料</button>
+        <button id="tab-orders" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tabPanel-orders" data-tab="orders">発注期限</button>
         <button id="tab-shelf-life" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tabPanel-shelf-life" data-tab="shelf-life">賞味期限設定</button>
       </nav>
 
@@ -106,8 +107,28 @@
         <span class="unit">400個あたりの配合で比例換算</span>
       </div>
       <p id="materialBasis" class="material-basis">週間予定 0個 ／ 400個仕込み 0回分</p>
-      <div id="materialSummary" class="material-grid"></div>
+      <p class="material-inventory-help">対象週の開始時点の在庫をkgで入力してください。理論残数は「週初在庫 − 今週必要量」です。</p>
+      <form id="materialInventoryForm">
+        <div id="materialSummary" class="material-grid"></div>
+        <div class="form-actions"><button class="button primary" type="submit">週初在庫を保存</button></div>
+        <p id="inventoryMessage" class="message" aria-live="polite"></p>
+      </form>
     </section>
+      </div>
+
+      <div id="tabPanel-orders" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-orders" tabindex="0">
+        <section class="panel order-deadlines-panel">
+          <div class="section-title">
+            <div><p class="eyebrow">ORDER DEADLINES</p><h2>発注期限と数量</h2></div>
+          </div>
+          <p class="order-help">理論残数が不足する日から納期を引いて期限を表示します。発注数は不足分を1発注単位ごとに切り上げます。</p>
+          <p id="orderBasis" class="material-basis">対象週：週間予定</p>
+          <form id="orderSettingsForm">
+            <div id="orderSettingsGrid" class="order-settings-grid"></div>
+            <div class="form-actions"><button class="button primary" type="submit">発注情報を保存</button></div>
+            <p id="orderSettingsMessage" class="message" aria-live="polite"></p>
+          </form>
+        </section>
       </div>
 
       <div id="tabPanel-shelf-life" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-shelf-life" tabindex="0">

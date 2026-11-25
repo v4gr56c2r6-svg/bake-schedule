@@ -11,16 +11,18 @@ import {
 const PRODUCTS = ["カスタード","あんこ","生地のみ","チョコ"];
 const MATERIAL_BASE_YIELD = 400;
 const MATERIALS = [
-  {name:"玉子", gramsPerBase:3860},
-  {name:"デリドール", gramsPerBase:666},
-  {name:"パルファンドール", gramsPerBase:66},
-  {name:"ヤキマンミックス", gramsPerBase:6660},
-  {name:"水", gramsPerBase:400}
+  {id:"egg",name:"玉子", gramsPerBase:3860},
+  {id:"delidor",name:"デリドール", gramsPerBase:666},
+  {id:"parfandor",name:"パルファンドール", gramsPerBase:66},
+  {id:"yakimanMix",name:"ヤキマンミックス", gramsPerBase:6660},
+  {id:"water",name:"水", gramsPerBase:400}
 ];
 const SETTINGS_DOC_ID = "_settings";
 const $ = id => document.getElementById(id);
 let db = null, auth = null, currentUser = null, plans = {};
 let shelfLifeSettings = {regularDays:null,boxedDays:null};
+let materialOrderSettings = defaultMaterialOrderSettings();
+let weeklyInventory = {};
 let weekStart = mondayOf(new Date());
 
 function mondayOf(date){const d=new Date(date.getFullYear(),date.getMonth(),date.getDate());d.setDate(d.getDate()-((d.getDay()+6)%7));return d;}
@@ -133,6 +135,39 @@ function productBreakdown(plan={}){
   const custard=qty(products["カスタード"]),anko=qty(products["あんこ"]);
   return {custardNormal:custard,ankoNormal:anko,custardBox:boxed,ankoBox:boxed,custardTotal:custard+boxed,ankoTotal:anko+boxed};
 }
+function defaultMaterialOrderSettings(){
+  return Object.fromEntries(MATERIALS.map(material=>[material.id,{leadDays:null,orderPackKg:null,orderUnit:""}]));
+}
+function normalizeOptionalNumber(value){
+  if(value===null||value===undefined||value==="")return null;
+  const number=Number(value);
+  return Number.isFinite(number)&&number>=0?number:null;
+}
+function normalizeMaterialOrderSettings(source={}){
+  return Object.fromEntries(MATERIALS.map(material=>{
+    const item=source?.[material.id]||{};
+    const pack=normalizeOptionalNumber(item.orderPackKg);
+    return [material.id,{
+      leadDays:normalizeDayCount(item.leadDays),
+      orderPackKg:pack>0?pack:null,
+      orderUnit:String(item.orderUnit||"").trim().slice(0,16)
+    }];
+  }));
+}
+function normalizeWeeklyInventory(source={}){
+  const inventory={};
+  Object.entries(source||{}).forEach(([weekKey,values])=>{
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(weekKey))return;
+    inventory[weekKey]=Object.fromEntries(MATERIALS.map(material=>[material.id,normalizeOptionalNumber(values?.[material.id])]));
+  });
+  return inventory;
+}
+function currentWeekStockKg(materialId){
+  const weekKey=dateKey(weekStart);
+  const input=document.querySelector(`[data-stock-kg="${materialId}"]`);
+  if(input&&input.dataset.weekKey===weekKey)return normalizeOptionalNumber(input.value);
+  return weeklyInventory[weekKey]?.[materialId]??null;
+}
 function normalizeDayCount(value){
   if(value===null||value===undefined||value==="")return null;
   const days=Number(value);
@@ -175,10 +210,11 @@ function plansWithCurrentDraft(){
   return result;
 }
 function formatMaterialAmount(grams){
-  const exactGrams=grams.toLocaleString("ja-JP",{maximumFractionDigits:3});
-  if(grams>=1000){
-    const kilograms=(grams/1000).toLocaleString("ja-JP",{maximumFractionDigits:2});
-    return {main:`${kilograms} kg`,detail:`${exactGrams} g`};
+  const sign=grams<0?"−":"",absolute=Math.abs(grams);
+  const exactGrams=`${sign}${absolute.toLocaleString("ja-JP",{maximumFractionDigits:3})}`;
+  if(absolute>=1000){
+    const kilograms=(absolute/1000).toLocaleString("ja-JP",{maximumFractionDigits:2});
+    return {main:`${sign}${kilograms} kg`,detail:`${exactGrams} g`};
   }
   return {main:`${exactGrams} g`,detail:""};
 }
@@ -189,26 +225,89 @@ function currentFormPlan(){
 }
 function renderMaterialSummary(){
   const dates=weekDates();
-  let weeklyPieces=dates.reduce((sum,date)=>sum+total(plans[dateKey(date)]),0);
-  const editingKey=$("editingDate").value;
-  const planKey=$("planDate").value;
-  const currentForm=currentFormPlan();
-  let includesDraft=false;
-  const isInWeek=key=>Boolean(key)&&dates.some(date=>dateKey(date)===key);
-  if(editingKey){
-    if(isInWeek(editingKey))weeklyPieces-=total(plans[editingKey]);
-    if(isInWeek(planKey)){weeklyPieces+=total(currentForm);includesDraft=true;}
-  }else if(isInWeek(planKey)&&!plans[planKey]){
-    weeklyPieces+=total(currentForm);
-    includesDraft=total(currentForm)>0;
-  }
+  const projected=plansWithCurrentDraft();
+  const weeklyPieces=dates.reduce((sum,date)=>sum+total(projected[dateKey(date)]),0);
+  const editingKey=$("editingDate").value,planKey=$("planDate").value;
+  const includesDraft=Boolean(total(currentFormPlan())>0&&dates.some(date=>dateKey(date)===planKey)&&(editingKey||!plans[planKey]));
   const materialFactor=weeklyPieces/MATERIAL_BASE_YIELD;
   const draftLabel=includesDraft?"（入力中を含む）":"";
   $("materialBasis").textContent=`週間予定 ${weeklyPieces.toLocaleString()}個${draftLabel} ／ 400個仕込み ${materialFactor.toLocaleString("ja-JP",{maximumFractionDigits:3})}回分`;
   $("materialSummary").innerHTML=MATERIALS.map(material=>{
-    const amount=formatMaterialAmount(material.gramsPerBase*materialFactor);
-    return `<article class="material-card"><strong>${material.name}</strong><span>${amount.main}</span>${amount.detail?`<small>${amount.detail}</small>`:""}</article>`;
+    const requiredGrams=material.gramsPerBase*materialFactor;
+    const amount=formatMaterialAmount(requiredGrams),stockKg=currentWeekStockKg(material.id);
+    const remaining=stockKg===null?"在庫未入力":formatMaterialAmount(stockKg*1000-requiredGrams).main;
+    return `<article class="material-card" data-required-grams="${requiredGrams}"><strong>${material.name}</strong><div class="material-need">${amount.main}</div>${amount.detail?`<small class="material-exact">${amount.detail}</small>`:""}<label class="material-stock-label">週初在庫（kg）<input type="number" min="0" step="0.001" inputmode="decimal" data-stock-kg="${material.id}" data-week-key="${dateKey(weekStart)}" value="${stockKg??""}" placeholder="例：10"></label><div class="material-remaining"><span>理論残数</span><strong id="material-remaining-${material.id}">${remaining}</strong></div></article>`;
   }).join("");
+  document.querySelectorAll("[data-stock-kg]").forEach(input=>input.addEventListener("input",()=>{updateMaterialBalances();renderOrderResults();}));
+  updateMaterialBalances();
+}
+function updateMaterialBalances(){
+  document.querySelectorAll("[data-stock-kg]").forEach(input=>{
+    const id=input.dataset.stockKg,card=input.closest(".material-card"),result=$(`material-remaining-${id}`);
+    if(!card||!result)return;
+    const stockKg=normalizeOptionalNumber(input.value);
+    const requiredGrams=Number(card.dataset.requiredGrams)||0;
+    if(stockKg===null){result.textContent="在庫未入力";result.classList.remove("negative");return;}
+    const remainingGrams=stockKg*1000-requiredGrams;
+    result.textContent=formatMaterialAmount(remainingGrams).main;
+    result.classList.toggle("negative",remainingGrams<0);
+  });
+}
+function currentOrderConfig(materialId){
+  const saved=materialOrderSettings[materialId]||{leadDays:null,orderPackKg:null,orderUnit:""};
+  const leadInput=document.querySelector(`[data-lead-days="${materialId}"]`);
+  const packInput=document.querySelector(`[data-order-pack-kg="${materialId}"]`);
+  const unitInput=document.querySelector(`[data-order-unit="${materialId}"]`);
+  const pack=normalizeOptionalNumber(packInput?packInput.value:saved.orderPackKg);
+  return {
+    leadDays:normalizeDayCount(leadInput?leadInput.value:saved.leadDays),
+    orderPackKg:pack>0?pack:null,
+    orderUnit:String(unitInput?unitInput.value:saved.orderUnit||"").trim().slice(0,16)
+  };
+}
+function renderOrderSettings(){
+  $("orderSettingsGrid").innerHTML=MATERIALS.map(material=>{
+    const settings=materialOrderSettings[material.id]||{leadDays:null,orderPackKg:null,orderUnit:""};
+    return `<article class="order-card"><h3>${material.name}</h3><div class="order-input-grid"><label>仕入れ納期（日）<input type="number" min="0" step="1" inputmode="numeric" data-lead-days="${material.id}" value="${settings.leadDays??""}" placeholder="例：3"></label><label>1発注単位（kg）<input type="number" min="0" step="0.001" inputmode="decimal" data-order-pack-kg="${material.id}" value="${settings.orderPackKg??""}" placeholder="例：20"></label><label>単位名<input type="text" maxlength="16" data-order-unit="${material.id}" value="${escapeHtml(settings.orderUnit)}" placeholder="例：袋"></label></div><div class="order-result-grid"><div><span>発注期限</span><strong id="order-deadline-${material.id}">—</strong></div><div><span>発注数</span><strong id="order-quantity-${material.id}">—</strong><small id="order-amount-${material.id}"></small></div></div></article>`;
+  }).join("");
+  document.querySelectorAll("[data-lead-days],[data-order-pack-kg],[data-order-unit]").forEach(input=>input.addEventListener("input",renderOrderResults));
+  renderOrderResults();
+}
+function renderOrderResults(){
+  const dates=weekDates(),projected=plansWithCurrentDraft();
+  const weeklyPieces=dates.reduce((sum,date)=>sum+total(projected[dateKey(date)]),0);
+  $("orderBasis").textContent=`対象週：${$("weekLabel").textContent} ／ 予定 ${weeklyPieces.toLocaleString()}個分`;
+  MATERIALS.forEach(material=>{
+    const deadline=$(`order-deadline-${material.id}`),quantity=$(`order-quantity-${material.id}`),amountLabel=$(`order-amount-${material.id}`);
+    if(!deadline||!quantity||!amountLabel)return;
+    const stockKg=currentWeekStockKg(material.id),config=currentOrderConfig(material.id);
+    const weeklyNeed=material.gramsPerBase*weeklyPieces/MATERIAL_BASE_YIELD;
+    if(weeklyNeed===0){deadline.textContent="今週は発注不要";quantity.textContent="0";amountLabel.textContent="";return;}
+    if(stockKg===null){deadline.textContent="在庫未入力";quantity.textContent="在庫を入力";amountLabel.textContent="材料タブで週初在庫を設定";return;}
+    const stockGrams=stockKg*1000,shortage=Math.max(0,weeklyNeed-stockGrams);
+    if(shortage===0){deadline.textContent="今週は発注不要";quantity.textContent="0";amountLabel.textContent=`理論残数 ${formatMaterialAmount(stockGrams-weeklyNeed).main}`;return;}
+    let remaining=stockGrams,shortageDate="";
+    for(const date of dates){
+      const plan=projected[dateKey(date)],dailyNeed=material.gramsPerBase*total(plan)/MATERIAL_BASE_YIELD;
+      remaining-=dailyNeed;
+      if(remaining< -0.000001){shortageDate=dateKey(date);break;}
+    }
+    if(config.leadDays===null){deadline.textContent="納期未入力";}
+    else if(shortageDate){
+      const dueDate=parseDate(shortageDate);dueDate.setDate(dueDate.getDate()-config.leadDays);
+      const todayKey=dateKey(new Date()),dueKey=dateKey(dueDate);
+      const dueLabel=`${dueDate.getMonth()+1}/${dueDate.getDate()}まで`;
+      deadline.textContent=dueKey<todayKey?`${dueLabel}（期限超過）`:dueKey===todayKey?`${dueLabel}（本日）`:dueLabel;
+    }else deadline.textContent="期限を算出できません";
+    if(config.orderPackKg){
+      const count=Math.ceil(shortage/(config.orderPackKg*1000)-0.0000001);
+      quantity.textContent=`${count}${config.orderUnit||"単位"}`;
+      amountLabel.textContent=`約${formatMaterialAmount(count*config.orderPackKg*1000).main}`;
+    }else{
+      quantity.textContent=formatMaterialAmount(shortage).main;
+      amountLabel.textContent="発注単位を入力すると個数に換算";
+    }
+  });
 }
 function renderTodaySummary(){
   const today=new Date(),key=dateKey(today);
@@ -238,7 +337,7 @@ function activateTab(name){
     button.tabIndex=active?0:-1;
   });
   document.querySelectorAll(".tab-panel").forEach(panel=>panel.classList.toggle("hidden",panel.id!==`tabPanel-${name}`));
-  $("weekToolbar").classList.toggle("hidden",name!=="materials"&&name!=="schedule");
+  $("weekToolbar").classList.toggle("hidden",!(["materials","orders","schedule"].includes(name)));
 }
 
 function showApp(user){
@@ -254,7 +353,8 @@ function showApp(user){
     loadPlans();
   }else{
     activateTab("home");
-    plans={};shelfLifeSettings={regularDays:null,boxedDays:null};renderShelfLifeForm();renderWeek();
+    plans={};shelfLifeSettings={regularDays:null,boxedDays:null};materialOrderSettings=defaultMaterialOrderSettings();weeklyInventory={};
+    renderShelfLifeForm();renderOrderSettings();renderWeek();
     $("connection").textContent="ログインしてください";
     $("connection").classList.remove("online");
   }
@@ -275,6 +375,7 @@ function updateTotals(){
   $("dayTotal").textContent=`${individual+bundles}個`;
   renderMaterialSummary();
   renderTodaySummary();
+  renderOrderResults();
 }
 function clearForm(date=dateKey(new Date())){
   $("scheduleForm").reset();$("planDate").value=date;$("editingDate").value="";
@@ -310,6 +411,7 @@ function renderWeek(){
   $("bundleTotal").textContent=`${bundles}個`;$("grandTotal").textContent=`${weeklyPieces}個`;
   renderMaterialSummary();
   renderTodaySummary();
+  renderOrderResults();
   $("flavorSummary").innerHTML=[
     ["通常製作分",flavor.custardNormal,flavor.ankoNormal],
     ["箱入り製作分",flavor.custardBox,flavor.ankoBox],
@@ -347,14 +449,28 @@ async function loadPlans(){
   try{
     const q=query(collection(db,"bakeSchedules"),where("ownerUid","==",currentUser.uid));
     const snap=await getDocs(q);plans={};shelfLifeSettings={regularDays:null,boxedDays:null};
+    materialOrderSettings=defaultMaterialOrderSettings();weeklyInventory={};
     snap.forEach(d=>{
       const data=d.data();
       if(d.id===SETTINGS_DOC_ID){
         shelfLifeSettings={regularDays:normalizeDayCount(data.regularShelfDays),boxedDays:normalizeDayCount(data.boxedShelfDays)};
+        materialOrderSettings=normalizeMaterialOrderSettings(data.materialOrderSettings);
+        weeklyInventory=normalizeWeeklyInventory(data.weeklyInventory);
       }else plans[d.id]=data;
     });
-    renderShelfLifeForm();renderWeek();
+    renderShelfLifeForm();renderOrderSettings();renderWeek();
   }catch(e){console.error(e);$("formMessage").textContent=`読み込みエラー：${e.message}`;}
+}
+async function saveAppSettings(){
+  if(!db||!currentUser)throw new Error("ログイン状態を確認してください。");
+  await setDoc(doc(db,"bakeSchedules",SETTINGS_DOC_ID),{
+    ownerUid:currentUser.uid,
+    regularShelfDays:shelfLifeSettings.regularDays,
+    boxedShelfDays:shelfLifeSettings.boxedDays,
+    materialOrderSettings,
+    weeklyInventory,
+    updatedAt:new Date().toISOString()
+  });
 }
 async function persist(key,data){
   if(!db||!currentUser)return false;
@@ -391,16 +507,48 @@ $("shelfLifeForm").addEventListener("submit",async e=>{
   if((regularValue!==""&&nextSettings.regularDays===null)||(boxedValue!==""&&nextSettings.boxedDays===null)){
     $("shelfLifeMessage").textContent="賞味期限は0以上の整数で入力してください。";return;
   }
+  const previousSettings=shelfLifeSettings;
+  shelfLifeSettings=nextSettings;
   try{
-    await setDoc(doc(db,"bakeSchedules",SETTINGS_DOC_ID),{
-      ownerUid:currentUser.uid,regularShelfDays:nextSettings.regularDays,
-      boxedShelfDays:nextSettings.boxedDays,updatedAt:new Date().toISOString()
-    });
-    shelfLifeSettings=nextSettings;renderWeek();
+    await saveAppSettings();renderWeek();
     $("shelfLifeMessage").textContent="賞味期限を保存しました。";
   }catch(error){
+    shelfLifeSettings=previousSettings;
     console.error(error);$("shelfLifeMessage").textContent=`保存できませんでした：${error.message}`;
   }
+});
+$("materialInventoryForm").addEventListener("submit",async e=>{
+  e.preventDefault();$("inventoryMessage").textContent="";
+  const weekKey=dateKey(weekStart),nextWeek={...(weeklyInventory[weekKey]||{})};
+  for(const material of MATERIALS){
+    const input=document.querySelector(`[data-stock-kg="${material.id}"]`),value=input?.value??"";
+    const amount=normalizeOptionalNumber(value);
+    if(value!==""&&amount===null){$("inventoryMessage").textContent="在庫は0以上の数値で入力してください。";return;}
+    nextWeek[material.id]=amount;
+  }
+  const previousInventory=weeklyInventory;
+  weeklyInventory={...weeklyInventory,[weekKey]:nextWeek};
+  try{await saveAppSettings();renderWeek();$("inventoryMessage").textContent="週初在庫を保存しました。";}
+  catch(error){weeklyInventory=previousInventory;console.error(error);$("inventoryMessage").textContent=`保存できませんでした：${error.message}`;}
+});
+$("orderSettingsForm").addEventListener("submit",async e=>{
+  e.preventDefault();$("orderSettingsMessage").textContent="";
+  const nextSettings=defaultMaterialOrderSettings();
+  for(const material of MATERIALS){
+    const leadInput=document.querySelector(`[data-lead-days="${material.id}"]`);
+    const packInput=document.querySelector(`[data-order-pack-kg="${material.id}"]`);
+    const unitInput=document.querySelector(`[data-order-unit="${material.id}"]`);
+    const leadValue=leadInput?.value??"",packValue=packInput?.value??"";
+    const leadDays=normalizeDayCount(leadValue),packKg=normalizeOptionalNumber(packValue);
+    if((leadValue!==""&&leadDays===null)||(packValue!==""&&(packKg===null||packKg<=0))){
+      $("orderSettingsMessage").textContent="納期は0以上の日数、発注単位は0より大きいkg数で入力してください。";return;
+    }
+    nextSettings[material.id]={leadDays,orderPackKg:packKg,orderUnit:String(unitInput?.value||"").trim().slice(0,16)};
+  }
+  const previousSettings=materialOrderSettings;
+  materialOrderSettings=nextSettings;
+  try{await saveAppSettings();renderOrderSettings();$("orderSettingsMessage").textContent="発注情報を保存しました。";}
+  catch(error){materialOrderSettings=previousSettings;renderOrderSettings();console.error(error);$("orderSettingsMessage").textContent=`保存できませんでした：${error.message}`;}
 });
 $("scheduleForm").addEventListener("submit",async e=>{
   e.preventDefault();const key=$("planDate").value;if(!key){$("formMessage").textContent="日付を入力してください。";return;}
@@ -423,6 +571,6 @@ $("prevWeek").onclick=()=>{weekStart.setDate(weekStart.getDate()-7);renderWeek()
 $("nextWeek").onclick=()=>{weekStart.setDate(weekStart.getDate()+7);renderWeek();};
 $("thisWeek").onclick=()=>{weekStart=mondayOf(new Date());renderWeek();};
 
-activateTab("home");renderProductInputs();clearForm();renderWeek();
+activateTab("home");renderProductInputs();clearForm();renderOrderSettings();renderWeek();
 const app=initializeApp(firebaseConfig);db=getFirestore(app);auth=getAuth(app);
 onAuthStateChanged(auth,showApp);
