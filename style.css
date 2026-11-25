@@ -50,7 +50,10 @@ input:focus,textarea:focus{outline:2px solid #b7c9f5;border-color:#5878bd}
 .product-grid input{margin-top:6px}
 .bundle-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .bundle-grid label{background:#f8f9fc;border-radius:10px;padding:13px}
+.bundle-grid select{display:block;width:100%;margin-top:7px;border:1px solid #dce2ec;border-radius:9px;padding:9px 10px;font:inherit;font-size:12px;color:#342e29;background:#fffefa}
+.bundle-grid select:focus{outline:2px solid #bed3df;border-color:#6e9bb5}
 .bundle-grid small{display:block;color:#6e7b91;margin-top:7px;font-weight:500}
+.bundle-grid small{font-size:10px;line-height:1.6;overflow-wrap:anywhere}
 .subtotal{display:flex;justify-content:space-between;align-items:center;padding:12px 2px 0;font-size:12px;color:#647087}
 .subtotal strong{font-size:17px;color:#1c376b}
 .full-label{margin-top:16px}
@@ -87,7 +90,7 @@ footer{text-align:center;color:#a0a8b6;font-size:10px;letter-spacing:.15em;paddi
 .account-bar.hidden{display:none}
 @media(max-width:700px){.account-bar{margin:-20px auto 18px;justify-content:space-between}}
 
-/* v1.4〜v1.8.1 絶叫焼きカラー、曜日・祝日、材料・期限、タブ表示 */
+/* v1.4〜v1.9 絶叫焼きカラー、曜日・祝日、材料・期限、タブ表示 */
 :root{color:#342e29;background:#f7f1e5}
 body{background:#f7f1e5}
 .topbar{background:#c64936}
@@ -110,6 +113,8 @@ body{background:#f7f1e5}
 label{color:#5a544b}
 input,textarea{border-color:#e1d8ca;color:#342e29;background:#fffefa}
 input:focus,textarea:focus{outline:2px solid #bed3df;border-color:#6e9bb5}
+.bundle-grid select{border-color:#e1d8ca}
+.bundle-grid select:focus{outline:2px solid #bed3df;border-color:#6e9bb5}
 .product-grid label,.bundle-grid label{background:#faf6ed}
 .bundle-grid small{color:#777063}
 .subtotal{color:#716a5f}
@@ -123,6 +128,7 @@ footer{color:#9c9387}
 .day-date.calendar-sunday .weekday-label,.day-date.calendar-holiday .weekday-label{color:#c64936}
 .day-date .holiday-name{color:#c64936;font-weight:800}
 .production-detail{display:block;margin-top:4px;color:#58744b;font-weight:700}
+.carry-status{display:block;margin-top:5px;color:#8a6940;font-size:10px;font-weight:700}
 .production-summary{padding:18px 22px}
 .production-summary .subsection-title{margin:0 0 14px}
 .production-summary h3{font-size:16px;margin:4px 0 0}

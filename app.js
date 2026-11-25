@@ -17,6 +17,12 @@ const MATERIALS = [
   {id:"yakimanMix",name:"ヤキマンミックス", gramsPerBase:6660},
   {id:"water",name:"水", gramsPerBase:400}
 ];
+const BUNDLE_TYPES = [
+  {key:"bundle4",size:4,flavorField:"bundle4Flavor"},
+  {key:"bundle8",size:8,flavorField:"bundle8Flavor"},
+  {key:"bundle16",size:16,flavorField:"bundle16Flavor"}
+];
+const BUNDLE_FLAVORS = {custard:"カスタード",anko:"あんこ",double:"ダブル焼き"};
 const SETTINGS_DOC_ID = "_settings";
 const $ = id => document.getElementById(id);
 let db = null, auth = null, currentUser = null, plans = {};
@@ -35,6 +41,37 @@ function qty(v){return Math.max(0,Math.floor(Number(v)||0));}
 function sumProducts(p={}){return Object.values(p).reduce((a,b)=>a+qty(b),0);}
 function bundleCount(p){return qty(p?.bundle4)*4+qty(p?.bundle8)*8+qty(p?.bundle16)*16;}
 function total(p){return sumProducts(p?.products)+bundleCount(p);}
+function bundleFlavors(plan={}){
+  const stored=plan.bundleFlavors||{};
+  return Object.fromEntries(BUNDLE_TYPES.map(type=>{
+    const value=stored[type.key]||plan[type.flavorField];
+    return [type.key,Object.hasOwn(BUNDLE_FLAVORS,value)?value:"double"];
+  }));
+}
+function boxedProductionFromPlan(plan={},phase="today"){
+  const result={custard:0,anko:0},flavors=bundleFlavors(plan);
+  BUNDLE_TYPES.forEach(type=>{
+    const half=qty(plan[type.key])*type.size/2,flavor=flavors[type.key];
+    if(phase==="today"){
+      if(flavor==="custard"||flavor==="double")result.custard+=half;
+      if(flavor==="anko"||flavor==="double")result.anko+=half;
+    }else if(flavor==="custard")result.anko+=half;
+    else if(flavor==="anko")result.custard+=half;
+  });
+  return result;
+}
+function previousDateKey(key){const date=parseDate(key);date.setDate(date.getDate()-1);return dateKey(date);}
+function productionBreakdownForDate(key,planMap=plans){
+  const plan=planMap[key]||{},todayBoxes=boxedProductionFromPlan(plan,"today"),carryBoxes=boxedProductionFromPlan(planMap[previousDateKey(key)]||{},"next");
+  const custardBox=todayBoxes.custard+carryBoxes.custard,ankoBox=todayBoxes.anko+carryBoxes.anko;
+  const custardNormal=qty(plan.products?.["カスタード"]),ankoNormal=qty(plan.products?.["あんこ"]);
+  return {custardNormal,ankoNormal,custardBox,ankoBox,custardTotal:custardNormal+custardBox,ankoTotal:ankoNormal+ankoBox};
+}
+function totalProductionForDate(key,planMap=plans){
+  const plan=planMap[key]||{},todayBoxes=boxedProductionFromPlan(plan,"today"),carryBoxes=boxedProductionFromPlan(planMap[previousDateKey(key)]||{},"next");
+  return sumProducts(plan.products)+(todayBoxes.custard+todayBoxes.anko)+(carryBoxes.custard+carryBoxes.anko);
+}
+function totalProductionForWeek(dates,planMap=plans){return dates.reduce((sum,date)=>sum+totalProductionForDate(dateKey(date),planMap),0);}
 function weekDates(){return Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(d.getDate()+i);return d;});}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 
@@ -234,12 +271,14 @@ function formatMaterialAmount(grams){
 function currentFormPlan(){
   const products={};
   document.querySelectorAll("[data-product]").forEach(input=>products[input.dataset.product]=qty(input.value));
-  return {products,bundle4:qty($("bundle4").value),bundle8:qty($("bundle8").value),bundle16:qty($("bundle16").value)};
+  const counts=Object.fromEntries(BUNDLE_TYPES.map(type=>[type.key,qty($(type.key).value)]));
+  const flavors=Object.fromEntries(BUNDLE_TYPES.map(type=>[type.key,$(`${type.key}Flavor`).value]));
+  return {products,...counts,bundleFlavors:flavors};
 }
 function renderMaterialSummary(){
   const dates=weekDates();
   const projected=plansWithCurrentDraft();
-  const weeklyPieces=dates.reduce((sum,date)=>sum+total(projected[dateKey(date)]),0);
+  const weeklyPieces=totalProductionForWeek(dates,projected);
   const editingKey=$("editingDate").value,planKey=$("planDate").value;
   const includesDraft=Boolean(total(currentFormPlan())>0&&dates.some(date=>dateKey(date)===planKey)&&(editingKey||!plans[planKey]));
   const materialFactor=weeklyPieces/MATERIAL_BASE_YIELD;
@@ -291,7 +330,7 @@ function renderOrderSettings(){
 function renderOrderResults(){
   const dates=weekDates(),projected=plansWithCurrentDraft();
   const excludeClosedDays=$("excludeNonBusinessDays").checked;
-  const weeklyPieces=dates.reduce((sum,date)=>sum+total(projected[dateKey(date)]),0);
+  const weeklyPieces=totalProductionForWeek(dates,projected);
   $("orderBasis").textContent=`対象週：${$("weekLabel").textContent} ／ 予定 ${weeklyPieces.toLocaleString()}個分`;
   MATERIALS.forEach(material=>{
     const deadline=$(`order-deadline-${material.id}`),quantity=$(`order-quantity-${material.id}`),amountLabel=$(`order-amount-${material.id}`);
@@ -304,7 +343,7 @@ function renderOrderResults(){
     if(shortage===0){deadline.textContent="今週は発注不要";quantity.textContent="0";amountLabel.textContent=`理論残数 ${formatMaterialAmount(stockGrams-weeklyNeed).main}`;return;}
     let remaining=stockGrams,shortageDate="";
     for(const date of dates){
-      const plan=projected[dateKey(date)],dailyNeed=material.gramsPerBase*total(plan)/MATERIAL_BASE_YIELD;
+      const dailyNeed=material.gramsPerBase*totalProductionForDate(dateKey(date),projected)/MATERIAL_BASE_YIELD;
       remaining-=dailyNeed;
       if(remaining< -0.000001){shortageDate=dateKey(date);break;}
     }
@@ -327,23 +366,22 @@ function renderOrderResults(){
 }
 function renderTodaySummary(){
   const today=new Date(),key=dateKey(today);
-  let plan=plans[key]||{};
-  const editingKey=$("editingDate").value,planKey=$("planDate").value,draft=currentFormPlan();
-  if(editingKey===key)plan=draft;
-  else if(!editingKey&&planKey===key&&!plans[key]&&total(draft)>0)plan=draft;
+  const projected=plansWithCurrentDraft(),plan=projected[key]||{};
   const weekdays=["日","月","火","水","木","金","土"];
   $("todayDate").textContent=`${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日（${weekdays[today.getDay()]}）`;
   const products=plan.products||{};
   $("todayRegularCounts").innerHTML=PRODUCTS.map(name=>`<div class="today-count-row"><span>${name}</span><strong>${qty(products[name]).toLocaleString()}個</strong></div>`).join("");
-  const breakdown=productBreakdown(plan);
+  const breakdown=productionBreakdownForDate(key,projected);
   $("todayBoxCounts").innerHTML=[
     ["カスタード",breakdown.custardBox],
     ["あんこ",breakdown.ankoBox]
   ].map(([name,count])=>`<div class="today-count-row"><span>${name}</span><strong>${count.toLocaleString()}個</strong></div>`).join("");
   const bundleSets=qty(plan.bundle4)+qty(plan.bundle8)+qty(plan.bundle16);
-  $("todayBundleDetail").textContent=`${bundleSets.toLocaleString()}セット・${bundleCount(plan).toLocaleString()}個`;
-  $("todayTotal").textContent=`${total(plan).toLocaleString()}個`;
-  $("todayPlanStatus").textContent=total(plan)>0?`予定あり${plan.eventName?`：${plan.eventName}`:""}`:"予定なし";
+  const carry=boxedProductionFromPlan(projected[previousDateKey(key)]||{},"next"),carryPieces=carry.custard+carry.anko;
+  $("todayBundleDetail").textContent=`今日入力分 ${bundleSets.toLocaleString()}セット・${bundleCount(plan).toLocaleString()}個${carryPieces?` ／ 前日入力分 ${carryPieces.toLocaleString()}個`:""}`;
+  const todayTotal=totalProductionForDate(key,projected);
+  $("todayTotal").textContent=`${todayTotal.toLocaleString()}個`;
+  $("todayPlanStatus").textContent=total(plan)>0?`予定あり${plan.eventName?`：${plan.eventName}`:""}`:todayTotal>0?"前日予定からの製作":"予定なし";
 }
 function activateTab(name){
   document.querySelectorAll(".tab-button").forEach(button=>{
@@ -383,12 +421,18 @@ function renderProductInputs(values={}){
 function updateTotals(){
   const products={};document.querySelectorAll("[data-product]").forEach(i=>products[i.dataset.product]=qty(i.value));
   const individual=sumProducts(products),b4=qty($("bundle4").value),b8=qty($("bundle8").value),b16=qty($("bundle16").value),bundles=b4*4+b8*8+b16*16;
-  $("bundle4Result").textContent=`${b4}セット × 4個 = ${b4*4}個`;
-  $("bundle8Result").textContent=`${b8}セット × 8個 = ${b8*8}個`;
-  $("bundle16Result").textContent=`${b16}セット × 16個 = ${b16*16}個`;
+  BUNDLE_TYPES.forEach(type=>{
+    const count=qty($(type.key).value),flavor=$(type.flavorField).value,pieces=count*type.size,label=BUNDLE_FLAVORS[flavor];
+    const today=boxedProductionFromPlan({[type.key]:count,bundleFlavors:{[type.key]:flavor}},"today");
+    const next=boxedProductionFromPlan({[type.key]:count,bundleFlavors:{[type.key]:flavor}},"next");
+    const todayPieces=today.custard+today.anko,nextPieces=next.custard+next.anko;
+    const scheduleText=count===0?"":flavor==="double"?" ／ 当日2種類":` ／ 当日${label}${todayPieces}個・翌日${BUNDLE_FLAVORS[flavor==="custard"?"anko":"custard"]}${nextPieces}個`;
+    $(`${type.key}Result`).textContent=`${count}セット × ${type.size}個 = ${pieces}個${scheduleText}`;
+  });
   $("individualSubtotal").textContent=`${individual}個`;
   $("bundleSubtotal").textContent=`${bundles}個`;
-  $("dayTotal").textContent=`${individual+bundles}個`;
+  const planDateKey=$("planDate").value,projected=plansWithCurrentDraft();
+  $("dayTotal").textContent=`${totalProductionForDate(planDateKey,projected).toLocaleString()}個`;
   renderMaterialSummary();
   renderTodaySummary();
   renderOrderResults();
@@ -397,13 +441,15 @@ function clearForm(date=dateKey(new Date())){
   $("scheduleForm").reset();$("planDate").value=date;$("editingDate").value="";
   $("editorTitle").textContent="焼成予定を登録";$("saveButton").textContent="予定を保存";
   $("deleteButton").classList.add("hidden");$("formMessage").textContent="";
-  $("bundle4").value=0;$("bundle8").value=0;$("bundle16").value=0;renderProductInputs();updateTotals();
+  BUNDLE_TYPES.forEach(type=>{$(type.key).value=0;$(type.flavorField).value="double";});renderProductInputs();updateTotals();
 }
 function fillForm(key){
   const p=plans[key];if(!p)return;
   $("editingDate").value=key;$("planDate").value=key;$("eventName").value=p.eventName||"";
   $("businessHours").value=p.businessHours||"";$("groupCount").value=p.groupCount??"";
-  $("notes").value=p.notes||"";$("bundle4").value=qty(p.bundle4);$("bundle8").value=qty(p.bundle8);$("bundle16").value=qty(p.bundle16);
+  $("notes").value=p.notes||"";
+  const flavors=bundleFlavors(p);
+  BUNDLE_TYPES.forEach(type=>{$(type.key).value=qty(p[type.key]);$(type.flavorField).value=flavors[type.key];});
   renderProductInputs(p.products||{});$("editorTitle").textContent=`${fmtDate(parseDate(key))} の予定を編集`;
   $("saveButton").textContent="変更を保存";$("deleteButton").classList.remove("hidden");
   updateTotals();$("editorPanel").scrollIntoView({behavior:"smooth",block:"start"});
@@ -411,13 +457,17 @@ function fillForm(key){
 function renderWeek(){
   const dates=weekDates(),end=dates[6];
   $("weekLabel").textContent=`${dates[0].getFullYear()}年 ${fmtDate(dates[0])}〜${fmtDate(end)}`;
-  const rows=dates.map(d=>({key:dateKey(d),date:d,plan:plans[dateKey(d)]}));
-  const registered=rows.filter(x=>x.plan&&total(x.plan)>0).length;
+  const projected=plansWithCurrentDraft();
+  const rows=dates.map(d=>{
+    const key=dateKey(d);
+    return {key,date:d,plan:plans[key],breakdown:productionBreakdownForDate(key,plans),pieces:totalProductionForDate(key,plans)};
+  });
+  const registered=rows.filter(x=>x.pieces>0).length;
   const individual=rows.reduce((s,x)=>s+sumProducts(x.plan?.products),0);
-  const bundles=rows.reduce((s,x)=>s+bundleCount(x.plan),0);
-  const weeklyPieces=individual+bundles;
+  const weeklyPieces=rows.reduce((s,x)=>s+x.pieces,0);
+  const bundles=weeklyPieces-individual;
   const flavor=rows.reduce((sum,x)=>{
-    const b=productBreakdown(x.plan);
+    const b=x.breakdown;
     sum.custardNormal+=b.custardNormal;sum.ankoNormal+=b.ankoNormal;
     sum.custardBox+=b.custardBox;sum.ankoBox+=b.ankoBox;
     sum.custardTotal+=b.custardTotal;sum.ankoTotal+=b.ankoTotal;
@@ -434,14 +484,14 @@ function renderWeek(){
     ["最終製作数",flavor.custardTotal,flavor.ankoTotal]
   ].map(([title,custard,anko])=>`<article class="flavor-card"><strong>${title}</strong><p>カスタード <b>${custard.toLocaleString()}個</b><br>あんこ <b>${anko.toLocaleString()}個</b></p></article>`).join("");
   const expirationsByDate={};
-  Object.entries(plansWithCurrentDraft()).forEach(([createdKey,plan])=>{
+  Object.entries(projected).forEach(([createdKey,plan])=>{
     if(!/^\d{4}-\d{2}-\d{2}$/.test(createdKey))return;
     expirationEntries(createdKey,plan).forEach(entry=>{
       if(!expirationsByDate[entry.dateKey])expirationsByDate[entry.dateKey]=[];
       expirationsByDate[entry.dateKey].push(entry.label);
     });
   });
-  $("scheduleList").innerHTML=rows.map(({key,date,plan})=>{
+  $("scheduleList").innerHTML=rows.map(({key,date,plan,breakdown,pieces})=>{
     const day=["日","月","火","水","木","金","土"][date.getDay()];
     const dayHoliday=holidayName(date);
     const calendarClass=dayHoliday?"calendar-holiday":date.getDay()===0?"calendar-sunday":date.getDay()===6?"calendar-saturday":"";
@@ -450,15 +500,27 @@ function renderWeek(){
     const dateMarkup=`<div class="day-date ${calendarClass}" title="${escapeHtml(dayHoliday)}"><span class="date-label">${dayLabel}</span>${holidayCaption}`;
     const expiryMarkup=(expirationsByDate[key]||[]).map(line=>`<div class="expiry-line">${escapeHtml(line)}</div>`).join("");
     const expiryBlock=expiryMarkup?`<div class="expiry-list">${expiryMarkup}</div>`:"";
-    if(!plan||total(plan)===0)return `<article class="day-card ${calendarClass}">${dateMarkup}<small>予定なし</small></div><div class="day-main"><strong>焼成予定なし</strong><p>この日の予定を登録できます。</p>${expiryBlock}<div class="day-tools"><button class="mini" data-add="${key}">${plan?"編集":"＋ 予定を登録"}</button></div></div><div class="day-count">—</div></article>`;
+    if(!plan||total(plan)===0){
+      if(pieces>0){
+        const flavorLine=`カスタード ${breakdown.custardTotal.toLocaleString()}個 ／ あんこ ${breakdown.ankoTotal.toLocaleString()}個`;
+        const sourceKey=previousDateKey(key),sourcePlan=plans[sourceKey],carryDone=Boolean(sourcePlan?.continuationDone);
+        const carryDoneButton=sourcePlan?`<button class="mini" data-carry-done="${sourceKey}">${carryDone?"前日分を未完了に戻す":"前日分を完了にする"}</button>`:"";
+        return `<article class="day-card ${calendarClass}">${dateMarkup}<small><span class="status ${carryDone?"done":""}">${carryDone?"焼成完了":"前日予定の続き"}</span></small></div><div class="day-main"><strong>前日の箱入りセットを製作</strong><p>前日入力分の残りを焼成します。<span class="production-detail">${flavorLine}</span></p>${expiryBlock}<div class="day-tools">${carryDoneButton}<button class="mini" data-add="${key}">＋ 予定を登録</button></div></div><div class="day-count">${pieces.toLocaleString()}個<small>箱入り製作数</small></div></article>`;
+      }
+      return `<article class="day-card ${calendarClass}">${dateMarkup}<small>予定なし</small></div><div class="day-main"><strong>焼成予定なし</strong><p>この日の予定を登録できます。</p>${expiryBlock}<div class="day-tools"><button class="mini" data-add="${key}">${plan?"編集":"＋ 予定を登録"}</button></div></div><div class="day-count">—</div></article>`;
+    }
     const detail=[plan.businessHours,plan.groupCount?`団体 ${plan.groupCount}人`:"",plan.notes].filter(Boolean).join(" ／ ");
-    const breakdown=productBreakdown(plan);
     const flavorLine=`カスタード ${breakdown.custardTotal.toLocaleString()}個 ／ あんこ ${breakdown.ankoTotal.toLocaleString()}個`;
-    return `<article class="day-card ${calendarClass}">${dateMarkup}<small><span class="status ${plan.done?"done":""}">${plan.done?"焼成完了":"予定あり"}</span></small></div><div class="day-main"><strong>${escapeHtml(plan.eventName||"焼成予定")}</strong><p>${escapeHtml(detail||"備考なし")}<span class="production-detail">${flavorLine}</span></p>${expiryBlock}<div class="day-tools"><button class="mini" data-edit="${key}">編集</button><button class="mini" data-done="${key}">${plan.done?"未完了に戻す":"完了にする"}</button></div></div><div class="day-count">${total(plan).toLocaleString()}個<small>予定数量</small></div></article>`;
+    const sourceKey=previousDateKey(key),carry=boxedProductionFromPlan(plans[sourceKey]||{},"next"),carryPieces=carry.custard+carry.anko,sourcePlan=plans[sourceKey],carryDone=Boolean(sourcePlan?.continuationDone);
+    const carryDetail=carryPieces?`（前日入力分 ${carryPieces.toLocaleString()}個を含む）`:"";
+    const carryDoneButton=carryPieces&&sourcePlan?`<button class="mini" data-carry-done="${sourceKey}">${carryDone?"前日分を未完了に戻す":"前日分を完了にする"}</button>`:"";
+    const carryStatus=carryPieces?`<small class="carry-status">前日分：${carryDone?"完了":"未完了"}</small>`:"";
+    return `<article class="day-card ${calendarClass}">${dateMarkup}<small><span class="status ${plan.done?"done":""}">${plan.done?"焼成完了":"予定あり"}</span></small></div><div class="day-main"><strong>${escapeHtml(plan.eventName||"焼成予定")}</strong><p>${escapeHtml(detail||"備考なし")}<span class="production-detail">${flavorLine}${carryDetail}</span></p>${carryStatus}${expiryBlock}<div class="day-tools"><button class="mini" data-edit="${key}">編集</button><button class="mini" data-done="${key}">${plan.done?"未完了に戻す":"完了にする"}</button>${carryDoneButton}</div></div><div class="day-count">${pieces.toLocaleString()}個<small>当日製作数</small></div></article>`;
   }).join("");
   $("scheduleList").querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>{const key=b.dataset.add;if(plans[key])fillForm(key);else clearForm(key);$("editorPanel").scrollIntoView({behavior:"smooth",block:"start"});});
   $("scheduleList").querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>fillForm(b.dataset.edit));
   $("scheduleList").querySelectorAll("[data-done]").forEach(b=>b.onclick=()=>toggleDone(b.dataset.done));
+  $("scheduleList").querySelectorAll("[data-carry-done]").forEach(b=>b.onclick=()=>toggleContinuationDone(b.dataset.carryDone));
 }
 async function loadPlans(){
   if(!db||!currentUser)return;
@@ -498,6 +560,10 @@ async function persist(key,data){
 async function toggleDone(key){
   const current=plans[key];if(!current)return;
   if(await persist(key,{...current,done:!current.done,updatedAt:new Date().toISOString()}))$("formMessage").textContent="完了状態を更新しました。";
+}
+async function toggleContinuationDone(sourceKey){
+  const current=plans[sourceKey];if(!current)return;
+  if(await persist(sourceKey,{...current,continuationDone:!current.continuationDone,updatedAt:new Date().toISOString()}))$("formMessage").textContent="翌日分の完了状態を更新しました。";
 }
 
 $("authForm").addEventListener("submit",async e=>{
@@ -573,7 +639,11 @@ $("orderSettingsForm").addEventListener("submit",async e=>{
 $("scheduleForm").addEventListener("submit",async e=>{
   e.preventDefault();const key=$("planDate").value;if(!key){$("formMessage").textContent="日付を入力してください。";return;}
   const products={};document.querySelectorAll("[data-product]").forEach(i=>products[i.dataset.product]=qty(i.value));
-  const data={date:key,eventName:$("eventName").value.trim(),products,bundle4:qty($("bundle4").value),bundle8:qty($("bundle8").value),bundle16:qty($("bundle16").value),businessHours:$("businessHours").value.trim(),groupCount:qty($("groupCount").value),notes:$("notes").value.trim(),done:plans[key]?.done||false,updatedAt:new Date().toISOString()};
+  const bundleCounts=Object.fromEntries(BUNDLE_TYPES.map(type=>[type.key,qty($(type.key).value)]));
+  const selectedFlavors=Object.fromEntries(BUNDLE_TYPES.map(type=>[type.key,$(type.flavorField).value]));
+  const previous=plans[key]||{},previousFlavors=bundleFlavors(previous);
+  const continuationUnchanged=BUNDLE_TYPES.every(type=>qty(previous[type.key])===bundleCounts[type.key]&&previousFlavors[type.key]===selectedFlavors[type.key]);
+  const data={date:key,eventName:$("eventName").value.trim(),products,...bundleCounts,bundleFlavors:selectedFlavors,businessHours:$("businessHours").value.trim(),groupCount:qty($("groupCount").value),notes:$("notes").value.trim(),done:previous.done||false,continuationDone:continuationUnchanged&&Boolean(previous.continuationDone),updatedAt:new Date().toISOString()};
   if(await persist(key,data)){clearForm(key);$("formMessage").textContent="予定を保存しました。";}
 });
 $("deleteButton").onclick=async()=>{
@@ -585,7 +655,10 @@ $("deleteButton").onclick=async()=>{
 $("clearForm").onclick=()=>clearForm($("planDate").value||dateKey(new Date()));
 $("addToday").onclick=()=>{clearForm(dateKey(new Date()));$("editorPanel").scrollIntoView({behavior:"smooth"});};
 document.querySelectorAll(".tab-button").forEach(button=>button.addEventListener("click",()=>activateTab(button.dataset.tab)));
-["bundle4","bundle8","bundle16"].forEach(id=>$(id).addEventListener("input",updateTotals));
+BUNDLE_TYPES.forEach(type=>{
+  $(type.key).addEventListener("input",updateTotals);
+  $(type.flavorField).addEventListener("change",updateTotals);
+});
 $("planDate").addEventListener("change",updateTotals);
 $("prevWeek").onclick=()=>{weekStart.setDate(weekStart.getDate()-7);renderWeek();};
 $("nextWeek").onclick=()=>{weekStart.setDate(weekStart.getDate()+7);renderWeek();};

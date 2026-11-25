@@ -193,23 +193,32 @@
 
         <div class="subsection">
           <div class="subsection-title">
-            <div><h3>セット商品の予定</h3><p>セット数を入力すると個数に換算</p></div>
+            <div><h3>セット商品の予定</h3><p>カスタード／あんこは選択した味を当日、残りを翌日に焼成。箱入り期限は予定入力日から計算</p></div>
           </div>
           <div class="bundle-grid">
             <label>4個入り（セット数）
               <input id="bundle4" type="number" min="0" step="1" value="0">
+              <select id="bundle4Flavor" aria-label="4個入りセットの焼成方法">
+                <option value="custard">カスタード</option><option value="anko">あんこ</option><option value="double" selected>ダブル焼き</option>
+              </select>
               <small id="bundle4Result">0セット × 4個 = 0個</small>
             </label>
             <label>8個入り（セット数）
               <input id="bundle8" type="number" min="0" step="1" value="0">
+              <select id="bundle8Flavor" aria-label="8個入りセットの焼成方法">
+                <option value="custard">カスタード</option><option value="anko">あんこ</option><option value="double" selected>ダブル焼き</option>
+              </select>
               <small id="bundle8Result">0セット × 8個 = 0個</small>
             </label>
             <label>16個入り（セット数）
               <input id="bundle16" type="number" min="0" step="1" value="0">
+              <select id="bundle16Flavor" aria-label="16個入りセットの焼成方法">
+                <option value="custard">カスタード</option><option value="anko">あんこ</option><option value="double" selected>ダブル焼き</option>
+              </select>
               <small id="bundle16Result">0セット × 16個 = 0個</small>
             </label>
           </div>
-          <div class="subtotal">セット換算合計 <strong id="bundleSubtotal">0個</strong></div>
+          <div class="subtotal">セット数量の合計 <strong id="bundleSubtotal">0個</strong></div>
         </div>
 
         <div class="form-grid">
@@ -227,7 +236,7 @@
         <div class="total-box">
           <span>この日の焼成予定合計</span>
           <strong id="dayTotal">0個</strong>
-          <small>商品別数量 ＋ セット換算数量</small>
+          <small>商品別数量 ＋ 当日焼成するセット分（前日分を含む）</small>
         </div>
         <div class="form-actions">
           <button id="saveButton" class="button primary" type="submit">予定を保存</button>
