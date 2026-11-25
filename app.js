@@ -142,28 +142,37 @@ function renderShelfLifeForm(){
   $("regularShelfDays").value=shelfLifeSettings.regularDays??"";
   $("boxedShelfDays").value=shelfLifeSettings.boxedDays??"";
 }
-function expirationDateLabel(key,days){
-  const made=parseDate(key),expiration=new Date(made);
+function expirationDateKey(key,days){
+  const expiration=parseDate(key);
   expiration.setDate(expiration.getDate()+days);
-  return expiration.getFullYear()===made.getFullYear()
-    ? fmtDate(expiration)
-    : `${expiration.getFullYear()}/${fmtDate(expiration)}`;
+  return dateKey(expiration);
 }
-function expirationLines(key,plan){
-  const made=fmtDate(parseDate(key)),lines=[];
+function expirationEntries(key,plan){
+  const made=fmtDate(parseDate(key)),entries=[];
   if(shelfLifeSettings.regularDays!==null){
     PRODUCTS.forEach(product=>{
       if(qty(plan.products?.[product])>0){
-        lines.push(`${made}作成 ${product}期限：${expirationDateLabel(key,shelfLifeSettings.regularDays)}`);
+        entries.push({dateKey:expirationDateKey(key,shelfLifeSettings.regularDays),label:`${made}作成 ${product}期限`});
       }
     });
   }
   if(shelfLifeSettings.boxedDays!==null){
     const breakdown=productBreakdown(plan);
-    if(breakdown.custardBox>0)lines.push(`${made}作成 箱入りカスタード期限：${expirationDateLabel(key,shelfLifeSettings.boxedDays)}`);
-    if(breakdown.ankoBox>0)lines.push(`${made}作成 箱入りあんこ期限：${expirationDateLabel(key,shelfLifeSettings.boxedDays)}`);
+    if(breakdown.custardBox>0)entries.push({dateKey:expirationDateKey(key,shelfLifeSettings.boxedDays),label:`${made}作成 箱入りカスタード期限`});
+    if(breakdown.ankoBox>0)entries.push({dateKey:expirationDateKey(key,shelfLifeSettings.boxedDays),label:`${made}作成 箱入りあんこ期限`});
   }
-  return lines;
+  return entries;
+}
+function plansWithCurrentDraft(){
+  const result={...plans};
+  const editingKey=$("editingDate").value,planKey=$("planDate").value,draft=currentFormPlan();
+  if(editingKey){
+    delete result[editingKey];
+    if(planKey&&total(draft)>0)result[planKey]=draft;
+  }else if(planKey&&!result[planKey]&&total(draft)>0){
+    result[planKey]=draft;
+  }
+  return result;
 }
 function formatMaterialAmount(grams){
   const exactGrams=grams.toLocaleString("ja-JP",{maximumFractionDigits:3});
@@ -272,6 +281,14 @@ function renderWeek(){
     ["箱入り製作分",flavor.custardBox,flavor.ankoBox],
     ["最終製作数",flavor.custardTotal,flavor.ankoTotal]
   ].map(([title,custard,anko])=>`<article class="flavor-card"><strong>${title}</strong><p>カスタード <b>${custard.toLocaleString()}個</b><br>あんこ <b>${anko.toLocaleString()}個</b></p></article>`).join("");
+  const expirationsByDate={};
+  Object.entries(plansWithCurrentDraft()).forEach(([createdKey,plan])=>{
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(createdKey))return;
+    expirationEntries(createdKey,plan).forEach(entry=>{
+      if(!expirationsByDate[entry.dateKey])expirationsByDate[entry.dateKey]=[];
+      expirationsByDate[entry.dateKey].push(entry.label);
+    });
+  });
   $("scheduleList").innerHTML=rows.map(({key,date,plan})=>{
     const day=["日","月","火","水","木","金","土"][date.getDay()];
     const dayHoliday=holidayName(date);
@@ -279,13 +296,13 @@ function renderWeek(){
     const dayLabel=`${date.getMonth()+1}/${date.getDate()}（<span class="weekday-label">${day}</span>）`;
     const holidayCaption=dayHoliday?`<small class="holiday-name">${escapeHtml(dayHoliday)}</small>`:"";
     const dateMarkup=`<div class="day-date ${calendarClass}" title="${escapeHtml(dayHoliday)}"><span class="date-label">${dayLabel}</span>${holidayCaption}`;
-    if(!plan||total(plan)===0)return `<article class="day-card ${calendarClass}">${dateMarkup}<small>予定なし</small></div><div class="day-main"><strong>焼成予定なし</strong><p>この日の予定を登録できます。</p><div class="day-tools"><button class="mini" data-add="${key}">${plan?"編集":"＋ 予定を登録"}</button></div></div><div class="day-count">—</div></article>`;
+    const expiryMarkup=(expirationsByDate[key]||[]).map(line=>`<div class="expiry-line">${escapeHtml(line)}</div>`).join("");
+    const expiryBlock=expiryMarkup?`<div class="expiry-list">${expiryMarkup}</div>`:"";
+    if(!plan||total(plan)===0)return `<article class="day-card ${calendarClass}">${dateMarkup}<small>予定なし</small></div><div class="day-main"><strong>焼成予定なし</strong><p>この日の予定を登録できます。</p>${expiryBlock}<div class="day-tools"><button class="mini" data-add="${key}">${plan?"編集":"＋ 予定を登録"}</button></div></div><div class="day-count">—</div></article>`;
     const detail=[plan.businessHours,plan.groupCount?`団体 ${plan.groupCount}人`:"",plan.notes].filter(Boolean).join(" ／ ");
     const breakdown=productBreakdown(plan);
     const flavorLine=`カスタード ${breakdown.custardTotal.toLocaleString()}個 ／ あんこ ${breakdown.ankoTotal.toLocaleString()}個`;
-    const expiryLines=expirationLines(key,plan).map(line=>`<div class="expiry-line">${escapeHtml(line)}</div>`).join("");
-    const expiryMarkup=expiryLines?`<div class="expiry-list">${expiryLines}</div>`:"";
-    return `<article class="day-card ${calendarClass}">${dateMarkup}<small><span class="status ${plan.done?"done":""}">${plan.done?"焼成完了":"予定あり"}</span></small></div><div class="day-main"><strong>${escapeHtml(plan.eventName||"焼成予定")}</strong><p>${escapeHtml(detail||"備考なし")}<span class="production-detail">${flavorLine}</span></p>${expiryMarkup}<div class="day-tools"><button class="mini" data-edit="${key}">編集</button><button class="mini" data-done="${key}">${plan.done?"未完了に戻す":"完了にする"}</button></div></div><div class="day-count">${total(plan).toLocaleString()}個<small>予定数量</small></div></article>`;
+    return `<article class="day-card ${calendarClass}">${dateMarkup}<small><span class="status ${plan.done?"done":""}">${plan.done?"焼成完了":"予定あり"}</span></small></div><div class="day-main"><strong>${escapeHtml(plan.eventName||"焼成予定")}</strong><p>${escapeHtml(detail||"備考なし")}<span class="production-detail">${flavorLine}</span></p>${expiryBlock}<div class="day-tools"><button class="mini" data-edit="${key}">編集</button><button class="mini" data-done="${key}">${plan.done?"未完了に戻す":"完了にする"}</button></div></div><div class="day-count">${total(plan).toLocaleString()}個<small>予定数量</small></div></article>`;
   }).join("");
   $("scheduleList").querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>{const key=b.dataset.add;if(plans[key])fillForm(key);else clearForm(key);$("editorPanel").scrollIntoView({behavior:"smooth",block:"start"});});
   $("scheduleList").querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>fillForm(b.dataset.edit));
