@@ -1,7 +1,7 @@
 import { firebaseConfig } from "./firebase-config.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
-  getFirestore, collection, doc, getDocs, query, where, runTransaction
+  getFirestore, collection, doc, getDocs, setDoc, query, where, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -461,17 +461,19 @@ function activateTab(name){
   $("weekToolbar").classList.toggle("hidden",!(["materials","orders","schedule"].includes(name)));
 }
 
-function showApp(user){
+async function showApp(user){
   currentUser=user;
   $("authPanel").classList.toggle("hidden",!!user);
   $("appContent").classList.toggle("hidden",!user);
   $("accountBar").classList.toggle("hidden",!user);
   if(user){
+    $("appContent").classList.add("hidden");
     activateTab("home");
     $("accountEmail").textContent=user.email||"ログイン中";
     $("connection").textContent="Firebase接続済み";
     $("connection").classList.add("online");
-    loadPlans();
+    await loadPlans();
+    if(currentUser?.uid===user.uid)$("appContent").classList.remove("hidden");
   }else{
     activateTab("home");
     plans={};shelfLifeSettings={regularDays:null,boxedDays:null};materialOrderSettings=defaultMaterialOrderSettings();weeklyInventory={};excludeNonBusinessDays=true;materialStockKg=defaultMaterialStock();appliedInventoryConsumption={};pendingDeliveryCounts={};
@@ -589,6 +591,10 @@ function renderWeek(){
   $("scheduleList").querySelectorAll("[data-done]").forEach(b=>b.onclick=()=>toggleDone(b.dataset.done));
   $("scheduleList").querySelectorAll("[data-carry-done]").forEach(b=>b.onclick=()=>toggleContinuationDone(b.dataset.carryDone));
 }
+async function ensureSettingsDocument(){
+  if(!db||!currentUser)throw new Error("ログイン状態を確認してください。");
+  await setDoc(doc(db,"bakeSchedules",SETTINGS_DOC_ID),{ownerUid:currentUser.uid},{merge:true});
+}
 async function loadPlans(){
   if(!db||!currentUser)return;
   try{
@@ -613,12 +619,17 @@ async function loadPlans(){
         const initialized=await initializeLegacyMaterialStock(loadedSettings);
         materialStockKg=initialized.stock;appliedInventoryConsumption=initialized.consumption;
       }
+    }else{
+      await ensureSettingsDocument();
+      const initialized=await initializeLegacyMaterialStock({ownerUid:currentUser.uid});
+      materialStockKg=initialized.stock;appliedInventoryConsumption=initialized.consumption;
     }
     renderShelfLifeForm();renderOrderSettings();renderWeek();
   }catch(e){console.error(e);$("formMessage").textContent=`読み込みエラー：${e.message}`;}
 }
 async function saveAppSettings(){
   if(!db||!currentUser)throw new Error("ログイン状態を確認してください。");
+  await ensureSettingsDocument();
   const settingsRef=doc(db,"bakeSchedules",SETTINGS_DOC_ID);
   let savedStock=materialStockKg,savedConsumption=appliedInventoryConsumption;
   await runTransaction(db,async transaction=>{
@@ -685,14 +696,18 @@ async function initializeLegacyMaterialStock(settings){
 async function persist(key,data){
   if(!db||!currentUser)return false;
   try{
+    await ensureSettingsDocument();
     const planRef=doc(db,"bakeSchedules",key),settingsRef=doc(db,"bakeSchedules",SETTINGS_DOC_ID),nextPlan={...data,ownerUid:currentUser.uid};
+    const previousPlanExists=Object.hasOwn(plans,key);
     let nextStock,nextConsumption;
     await runTransaction(db,async transaction=>{
-      const [planSnapshot,settingsSnapshot]=await Promise.all([transaction.get(planRef),transaction.get(settingsRef)]);
+      const [planSnapshot,settingsSnapshot]=previousPlanExists
+        ?await Promise.all([transaction.get(planRef),transaction.get(settingsRef)])
+        :[null,await transaction.get(settingsRef)];
       const existingSettings=settingsSnapshot.exists()?settingsSnapshot.data():{};
       nextStock=materialStockFromSettings(existingSettings);
       nextConsumption=normalizeInventoryConsumption(existingSettings.appliedInventoryConsumption);
-      reconcilePlanInventory(nextStock,nextConsumption,key,planSnapshot.exists()?planSnapshot.data():null,nextPlan);
+      reconcilePlanInventory(nextStock,nextConsumption,key,planSnapshot?.exists()?planSnapshot.data():null,nextPlan);
       transaction.set(planRef,nextPlan);
       transaction.set(settingsRef,{
         ...existingSettings,
@@ -721,6 +736,7 @@ async function saveMaterialDeliveries(){
   if(!Object.keys(additions).length){message.textContent="在庫に追加する納品数を入力してください。";return;}
   const settingsRef=doc(db,"bakeSchedules",SETTINGS_DOC_ID);
   try{
+    await ensureSettingsDocument();
     let updatedStock;
     await runTransaction(db,async transaction=>{
       const snapshot=await transaction.get(settingsRef),settings=snapshot.exists()?snapshot.data():{};
@@ -741,6 +757,7 @@ async function saveMaterialDeliveries(){
   }catch(error){console.error(error);message.textContent=`保存できませんでした：${error.message}`;}
 }
 async function deletePlanAndRestoreInventory(key){
+  await ensureSettingsDocument();
   const planRef=doc(db,"bakeSchedules",key),settingsRef=doc(db,"bakeSchedules",SETTINGS_DOC_ID);
   let restoredStock,restoredConsumption;
   await runTransaction(db,async transaction=>{

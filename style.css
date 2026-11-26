@@ -90,7 +90,7 @@ footer{text-align:center;color:#a0a8b6;font-size:10px;letter-spacing:.15em;paddi
 .account-bar.hidden{display:none}
 @media(max-width:700px){.account-bar{margin:-20px auto 18px;justify-content:space-between}}
 
-/* v1.4〜v1.10.1 絶叫焼きカラー、曜日・祝日、材料・期限、タブ表示 */
+/* v1.4〜v1.10.2 絶叫焼きカラー、曜日・祝日、材料・期限、タブ表示 */
 :root{color:#342e29;background:#f7f1e5}
 body{background:#f7f1e5}
 .topbar{background:#c64936}
