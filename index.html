@@ -121,7 +121,7 @@
           <div class="section-title">
             <div><p class="eyebrow">ORDER DEADLINES</p><h2>発注期限と数量</h2></div>
           </div>
-          <p class="order-help">実質在庫が未完了予定の使用量に足りなくなる日から納期を引いて期限を表示します。発注数は不足分を1発注単位ごとに切り上げます。</p>
+          <p class="order-help">未完了予定分に400個分の安全在庫を加えた量を基準にします。予定消化後に安全在庫を下回る日から納期を引いて期限を表示し、不足分を発注します。</p>
           <p id="orderBasis" class="material-basis">対象週：週間予定</p>
           <form id="orderSettingsForm">
             <label class="business-days-toggle"><input id="excludeNonBusinessDays" type="checkbox" checked>納期計算で土日祝を除く</label>

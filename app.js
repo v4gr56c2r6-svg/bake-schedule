@@ -10,6 +10,7 @@ import {
 
 const PRODUCTS = ["カスタード","あんこ","生地のみ","チョコ"];
 const MATERIAL_BASE_YIELD = 400;
+const ORDER_BUFFER_PIECES = 400;
 const MATERIALS = [
   {id:"egg",name:"玉子", gramsPerBase:3860},
   {id:"delidor",name:"デリドール", gramsPerBase:666},
@@ -397,20 +398,21 @@ function renderOrderResults(){
   const dates=weekDates(),projected=plansWithCurrentDraft();
   const excludeClosedDays=$("excludeNonBusinessDays").checked;
   const weeklyPieces=totalPendingProductionForWeek(dates,projected);
-  $("orderBasis").textContent=`対象週：${$("weekLabel").textContent} ／ 未完了予定 ${weeklyPieces.toLocaleString()}個 ／ 実質在庫から発注数を計算`;
+  $("orderBasis").textContent=`対象週：${$("weekLabel").textContent} ／ 未完了予定 ${weeklyPieces.toLocaleString()}個＋安全在庫 ${ORDER_BUFFER_PIECES}個分で発注判定`;
   MATERIALS.forEach(material=>{
     const deadline=$(`order-deadline-${material.id}`),quantity=$(`order-quantity-${material.id}`),amountLabel=$(`order-amount-${material.id}`);
     if(!deadline||!quantity||!amountLabel)return;
     const stockKg=normalizeStockKg(materialStockKg[material.id]),config=currentOrderConfig(material.id);
     const weeklyNeed=material.gramsPerBase*weeklyPieces/MATERIAL_BASE_YIELD;
-    if(weeklyNeed===0){deadline.textContent="今週は発注不要";quantity.textContent="0";amountLabel.textContent="";return;}
-    const stockGrams=stockKg*1000,shortage=Math.max(0,weeklyNeed-stockGrams);
-    if(shortage===0){deadline.textContent="今週は発注不要";quantity.textContent="0";amountLabel.textContent=`理論残数 ${formatMaterialAmount(stockGrams-weeklyNeed).main}`;return;}
+    const stockGrams=stockKg*1000,bufferGrams=material.gramsPerBase*ORDER_BUFFER_PIECES/MATERIAL_BASE_YIELD;
+    const shortage=Math.max(0,weeklyNeed+bufferGrams-stockGrams);
+    if(shortage===0){deadline.textContent="今週は発注不要";quantity.textContent="0";amountLabel.textContent=`安全在庫確保後の余裕 ${formatMaterialAmount(stockGrams-weeklyNeed-bufferGrams).main}`;return;}
     let remaining=stockGrams,shortageDate="";
-    for(const date of dates){
+    if(remaining<bufferGrams-0.000001)shortageDate=dateKey(new Date());
+    else for(const date of dates){
       const dailyNeed=material.gramsPerBase*pendingProductionForDate(dateKey(date),projected)/MATERIAL_BASE_YIELD;
       remaining-=dailyNeed;
-      if(remaining< -0.000001){shortageDate=dateKey(date);break;}
+      if(remaining<bufferGrams-0.000001){shortageDate=dateKey(date);break;}
     }
     if(config.leadDays===null){deadline.textContent="納期未入力";}
     else if(shortageDate){
