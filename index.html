@@ -107,10 +107,10 @@
         <span class="unit">400個あたりの配合で比例換算</span>
       </div>
       <p id="materialBasis" class="material-basis">週間予定 0個 ／ 400個仕込み 0回分</p>
-      <p class="material-inventory-help">対象週の開始時点の在庫をkgで入力してください。理論残数は「週初在庫 − 今週必要量」です。入力内容は自動保存されます。</p>
+      <p class="material-inventory-help">店舗に届いた数量を入力して保存すると、発注期限タブで設定した1発注単位（袋・箱など）×納品数を実質在庫へ加算します。未完了の予定分は材料必要量として差し引き、予定を完了にすると当日分の材料使用量を在庫から減らします。</p>
       <form id="materialInventoryForm">
         <div id="materialSummary" class="material-grid"></div>
-        <div class="form-actions"><button class="button primary" type="submit">今すぐ保存</button></div>
+        <div class="form-actions"><button class="button primary" type="submit">納品を在庫に追加</button></div>
         <p id="inventoryMessage" class="message" aria-live="polite"></p>
       </form>
     </section>
@@ -121,7 +121,7 @@
           <div class="section-title">
             <div><p class="eyebrow">ORDER DEADLINES</p><h2>発注期限と数量</h2></div>
           </div>
-          <p class="order-help">理論残数が不足する日から納期を引いて期限を表示します。発注数は不足分を1発注単位ごとに切り上げます。</p>
+          <p class="order-help">実質在庫が未完了予定の使用量に足りなくなる日から納期を引いて期限を表示します。発注数は不足分を1発注単位ごとに切り上げます。</p>
           <p id="orderBasis" class="material-basis">対象週：週間予定</p>
           <form id="orderSettingsForm">
             <label class="business-days-toggle"><input id="excludeNonBusinessDays" type="checkbox" checked>納期計算で土日祝を除く</label>
